@@ -59,22 +59,6 @@ def getFeatures(sDict, psi):
   return psi(s)
   
   
-def getBasis(max_, min_, gridpoints): 
-  '''
-  Get basis vectors given limits of state space and number of points per dimension  
-  
-  Parameters
-  ----------
-  max_ : array containing maxima for each dimension of state space
-  min_ : array containing minima for each dimension of state space
-  gridpoints : integer for number of points per dimension
-  
-  Returns
-  -------
-  2d array of basis vectors ; size (gridpoints ^ state space dimension) x (state space dimension)
-  '''
-  nS = len(max_)
-  return np.array([np.linspace(min_[i], max_[i], gridpoints) for i in range(nS)])
 
 #State space boundaries
 max_ = np.array([280, 300,  170,  300, 10])
