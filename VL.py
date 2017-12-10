@@ -39,7 +39,7 @@ def thetaPi(beta, policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu):
   -------
   Estimate of theta 
   '''
-  T, p = Xtheta.shape[0], Xtheta.shape[1]
+  T, p = Xtheta.shape[0] - 1, Xtheta.shape[1]
   if len(A.shape) == 1:
     w = np.array([float(policyProbs(A[i], Xbeta[i,:], beta, eps=eps)) / Mu[i] for i in range(T)])
   else:
@@ -105,13 +105,17 @@ def betaOpt(policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, wStart=None, refDist=N
   -------
   Estimate of beta
   '''
-  objective = lambda beta: vPi(beta, policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, refDist=refDist)
-  if wStart is None: 
-    nPi = Xbeta.shape[2]
-    wStart = np.zeros(nPi)
-  betaOpt = VLopt(objective, x0=wStart)
- # print('Optimal theta: {}'.format(thetaPiMulti(betaOpt, policyProbs, A, R, Xtheta, Xbeta, Mu, gamma, eps)))
-  return betaOpt
+  T, nPi = Xbeta.shape
+  if T == 1: 
+    return np.zeros(nPi)
+  else:    
+    objective = lambda beta: vPi(beta, policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, refDist=refDist)
+    if wStart is None: 
+      nPi = Xbeta.shape[1]
+      wStart = np.zeros(nPi)
+    betaOpt = VLopt(objective, x0=wStart)
+    #print('Optimal theta: {}'.format(thetaPiMulti(betaOpt, policyProbs, A, R, Xtheta, Xbeta, Mu, gamma, eps)))
+    return betaOpt
       
       
   

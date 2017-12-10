@@ -4,7 +4,7 @@ Created on Sat Dec  9 20:39:38 2017
 
 @author: Jesse
 
-This file contains functions that actions and probabilities associated with policies in V-learning.
+This file contains functions that return actions and probabilities associated with policies in V-learning.
 """
 
 import numpy as np

@@ -22,7 +22,7 @@ def gKernel(x, sigmaSq):
   '''
   Gaussian kernel.
   '''
-  norm = np.linalg.norm(x, axis=1)
+  norm = np.linalg.norm(x)
   return np.exp(-norm**2/(2 * sigmaSq))
 
 def gRBF(s, basis, sigmaSq = 1):

@@ -82,7 +82,7 @@ min_ = np.array([120, 50, 30, 0, -15])
 gridpoints = 5
 basis = getBasis(max_, min_, gridpoints)
 
-def flappyVL(basis = basis):
+def VLflappy(basis = basis):
   
   nV  = basis.shape[0] #V-function feature dimension
   nPi = basis.shape[1] #Policy feature dimension 
@@ -93,19 +93,19 @@ def flappyVL(basis = basis):
   epsilon = 0.0
   gamma = 0.9 
   sigmaSq = 1 
-  vFeatures = partial(features.gRBF, sigmaSq = sigmaSq) #Features for v-function 
+  vFeatures = partial(features.gRBF, basis = basis, sigmaSq = sigmaSq) #Features for v-function 
   piFeatures = features.identity                        #Features for policy
   
   #Data arrays 
   FV  = np.zeros((0, nV))
   FPi = np.zeros((0, nPi))
   R = np.zeros(0)
-  A = np.zeros((1,0))  
+  A = np.zeros(0)
   Mu = np.zeros(0)          
   M = np.zeros((0, nV, nV))
   
   #Initialize game parameters
-  wStart = None       #Warm start for beta_hat estimation 
+  bHat = np.zeros(nPi)       #Warm start for beta_hat estimation 
   aList = [None, 119] #Codes for actions   
   iEp = 0 #           #Count episode 
   game = FlappyBird()
@@ -123,16 +123,13 @@ def flappyVL(basis = basis):
     for i in range(nFrame):
       score += 1
       
-      #Update policy estimate
-      bHat = betaOpt(policyProbsBin, epsilon, M, A, R, FPi, FV[:,:-1], Mu, wStart=wStart)   
-      
       #Take action
       aProb = piBin(fPi, bHat)
       a = (np.random.random() < aProb*(1-epsilon))
       mu = policyProbsBin(a, fPi, bHat, eps = epsilon)      
-      wStart = bHat
       
       #Take action and get next obs
+      print(a, aList[a])
       r = env.act(aList[a])
       sDict = game.getGameState()
       fVp1 = getFeatures(sDict, vFeatures)
@@ -145,6 +142,9 @@ def flappyVL(basis = basis):
       FPi = np.vstack((FPi, fPi))
       A, R, Mu = np.append(A, a), np.append(R, r), np.append(Mu, mu)
       M = np.concatenate((M, [outerProd]), axis=0)      
+      
+      #Update policy estimate
+      bHat = betaOpt(policyProbsBin, epsilon, M, A, R, FPi, FV[:,:-1], Mu, wStart = bHat)   
     
       if env.game_over():
         print('score: {}'.format(score))
@@ -152,5 +152,6 @@ def flappyVL(basis = basis):
         env.reset_game() 
         break
 
+VLflappy()
   
   
