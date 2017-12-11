@@ -12,7 +12,7 @@ Implementing optimization similar to that described in https://arxiv.org/pdf/161
 
 import scipy.optimize as optim
 
-def VLopt(objective, x0, basinhop=True):
+def VLopt(objective, x0, basinhop=False):
   if basinhop: 
     x0 = optim.basinhopping(objective, x0=x0, niter=1000).x
   xOpt = optim.minimize(objective, x0=x0, method='L-BFGS-B').x

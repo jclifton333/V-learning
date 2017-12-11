@@ -17,6 +17,7 @@ theta_T = (M_T)^-1 . v_T, where
 
 import numpy as np
 from VLopt import VLopt
+import pdb
 
 def thetaPi(beta, policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu):  
   '''
@@ -44,7 +45,7 @@ def thetaPi(beta, policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu):
     w = np.array([float(policyProbs(A[i], Xbeta[i,:], beta, eps=eps)) / Mu[i] for i in range(T)])
   else:
     w = np.array([float(policyProbs(A[i,:], Xbeta[i,:], beta, eps=eps)) / Mu[i] for i in range(T)])
-  sumRS = np.sum(np.multiply(Xtheta, np.multiply(w, R).reshape(T,1)), axis=0)
+  sumRS = np.sum(np.multiply(Xtheta[:-1,:], np.multiply(w, R).reshape(T,1)), axis=0)
   sumM  = np.sum(np.multiply(M, w.reshape(T, 1, 1)), axis=0)
   sumMInv = np.linalg.inv(sumM + T**(-1/2)*np.eye(p))
   return np.dot(sumMInv, sumRS)

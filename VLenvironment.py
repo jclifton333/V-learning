@@ -10,6 +10,8 @@ from abc import abstractmethod
 from functools import partial
 import numpy as np
 import gym
+#from ple.games.flappybird import FlappyBird
+#from ple import PLE
 from featureUtils import getBasis, gRBF, identity, intercept
 from policyUtils import policyProbsBin
 import pdb
@@ -120,6 +122,7 @@ class Cartpole(VLenv):
     self.fPi = self.piFeatures(s)
     self.F_V = np.vstack((self.F_V, self.fV))
     self.F_Pi = np.vstack((self.F_Pi, self.fPi))
+    return self.fPi 
   
   def step(self, action, bHat, state = None):
     '''
@@ -153,19 +156,18 @@ class Cartpole(VLenv):
     #Update data
     self.fV  = fVNext
     self.fPi = fPiNext
-    self.F_V = np.vstack((self.F_V, self.fV))
-    self.F_Pi = np.vstack((self.F_Pi, self.fPi))
     self.A = np.append(self.A, action)
     self.R = np.append(self.R, reward)
     self.Mu = np.append(self.Mu, mu)
     self.M = np.concatenate((self.M, [outerProd]), axis=0)
-    
+    if not done: 
+      self.F_V = np.vstack((self.F_V, self.fV))
+      self.F_Pi = np.vstack((self.F_Pi, self.fPi))
+      
     return self.fV, self.F_V, self.F_Pi, self.A, self.R, self.Mu, self.M, done 
     
-vlenv = Cartpole() 
-vlenv.reset() 
-vlenv.step(1, [0,0], 0)  
-    
+class FlappyBird(VLenv):
+  pass 
     
     
     
