@@ -6,7 +6,7 @@ Created on Sun Dec 10 11:52:51 2017
 
 Environment objects for V-learning.
 """
-from abc import abstractmethod
+from abc import abstractmethod 
 from functools import partial
 import numpy as np
 import gym
@@ -15,16 +15,53 @@ from policyUtils import policyProbsBin
 import pdb
 
 
-class VLenv():
+class VLenv(object):
   '''
-  Generic VL environment class.  Should be implemented to accomodate cartpole,
+  Generic VL environment class.  Should be implemented to accommodate cartpole,
   flappy bird, and finite MDPs.  
   '''
   
-  @abstractmethod 
-  def __init__(self):
-    self.vFeatures  = None #Feature function for v-function 
-    self.piFeatures = None #Feature function for policy 
+  def __init__(self, MAX_STATE, MIN_STATE, NUM_STATE, gamma, epsilon, vFeatureArgs, piFeatureArgs):
+    self.MAX_STATE = MAX_STATE 
+    self.MIN_STATE = MIN_STATE 
+    self.NUM_STATE = NUM_STATE 
+    self.gamma = gamma 
+    self.epsilon = epsilon
+    
+    #Set feature functions and feature dimensions 
+    self.vFeatures, self.nV   = self._set_features(vFeatureArgs)
+    self.piFeatures, self.nPi = self._set_features(piFeatureArgs)
+    
+    #Initialize data arrays
+    self.F_V  = np.zeros((0, self.nV))        #V-function features
+    self.F_Pi = np.zeros((0, self.nPi))       #Policy features
+    self.A    = np.zeros(0)                   #Actions
+    self.R    = np.zeros(0)                   #Rewards
+    self.Mu   = np.zeros(0)                   #Action probabilities
+    self.M    = np.zeros((0, self.nV, self.nV)) #Outer products (for computing thetaHat)
+    
+  def _set_features(self, featureArgs):
+    '''
+    Returns feature function and feature dimension. 
+    :param featureArgs: Dictionary {'featureChoice':featureChoice}, where featureChoice is a string in
+                        ['gRBF', 'intercept', 'identity']. If featureChoice == 'gRBF', then items 'gridpoints' 
+                        and 'sigmaSq' must also be provided. 
+    :return featureFunction: feature function corresponding to featureChoice
+    :return nF: feature dimension     
+    '''
+    featureChoice = featureArgs['featureChoice']
+    if featureChoice == 'gRBF': 
+      gridpoints, sigmaSq = featureArgs['gridpoints'], featureArgs['sigmaSq']
+      basis = getBasis(self.MAX_STATE, self.MIN_STATE, gridpoints) 
+      featureFunc = partial(gRBF, basis = basis, sigmaSq = sigmaSq) 
+      nF = gridpoints**self.NUM_STATE
+    elif featureChoice == 'identity': 
+       featureFunc = identity 
+       nF = self.NUM_STATE 
+    elif featureChoice == 'intercept': 
+       featureFunc = intercept 
+       nF = self.NUM_STATE + 1
+    return featureFunc, nF
     
   @abstractmethod
   def reset(self):
@@ -51,20 +88,13 @@ class VLenv():
     Next state, boolean for simulation having terminated, data matrices
     '''    
     pass
-  
-  @abstractmethod
-  def _set_features(self, featureChoice):
-    '''
-    Sets feature function.
-    :param featureChoice: string for feature choice in ['gRBF', 'identity']
-    '''
     
 class Cartpole(VLenv):
   MAX_STATE = np.array([0.75, 3.3]) #Set bounds of state space
   MIN_STATE = -MAX_STATE  
   NUM_STATE = 2
     
-  def __init__(self, gamma = 0.9, defaultReward = True, vFeatureChoice = 'gRBF', piFeatureChoice = 'identity', vGridpoints = 5, vSigmaSq = 1, piGridpoints = None, piSigmaSq = None):
+  def __init__(self, gamma = 0.9, epsilon = 0.1, defaultReward = True, vFeatureArgs = {'featureChoice':'gRBF', 'sigmaSq':1, 'gridpoints':5}, piFeatureArgs = {'featureChoice':'identity'}):
     '''
     Constructs the cartpole environment, and sets feature functions.  
     
@@ -72,41 +102,14 @@ class Cartpole(VLenv):
     ----------
     gamma: discount factor
     defaultReward: boolean for using defaultReward, or r = -abs(state[2]) - abs(state[3])
-    vFeatureChoice: string for v-function features
-    piFeatureChoice: string for policy features 
-    vGridpoints: integer for number of points per dimension, for constructing RBF grid (for v-function features)
-    vSigmaSq: variance for Gaussian RBF kernel (for v-function features)
-    piGridpoints: '' (for policy features)
-    piSigmaSq: '' (for policy features)    
+    vFeatureArgs:  Dictionary {'featureChoice':featureChoice}, where featureChoice is a string in ['gRBF', 'intercept', 'identity'].
+                   If featureChoice == 'gRBF', then items 'gridpoints' and 'sigmaSq' must also be provided. 
+    piFeatureArgs: '' 
     '''
+    VLenv.__init__(self, Cartpole.MAX_STATE, Cartpole.MIN_STATE, Cartpole.NUM_STATE, gamma, epsilon, vFeatureArgs, piFeatureArgs)
     self.env = gym.make('CartPole-v0')
-    self.gamma = gamma
-    self.defaultReward = defaultReward
-    
-    #Set feature functions 
-    if vFeatureChoice == 'gRBF': 
-      vBasis = getBasis(Cartpole.MAX_STATE, Cartpole.MIN_STATE, vGridpoints)
-      self.vFeatures = partial(gRBF, basis = vBasis, sigmaSq = vSigmaSq)
-      self.nV = vGridpoints**2 
-    else: 
-      self.vFeatures = intercept
-      self.nV = Cartpole.NUM_STATE + 1
-    if piFeatureChoice == 'gRBF': 
-      piBasis = getBasis(Cartpole.MAX_STATE, Cartpole.MIN_STATE, piGridpoints)
-      self.piFeatures = partial(gRBF, basis = piBasis, sigmaSq = piSigmaSq)
-      self.nPi = piGridpoints**2
-    else:
-      self.piFeatures = identity
-      self.nPi = Cartpole.NUM_STATE      
-    
-    #Initialize data arrays
-    self.F_V  = np.zeros((0, self.nV))        #V-function features
-    self.F_Pi = np.zeros((0, self.nPi))       #Policy features
-    self.A    = np.zeros(0)                   #Actions
-    self.R    = np.zeros(0)                   #Rewards
-    self.Mu   = np.zeros(0)                   #Action probabilities
-    self.M    = np.zeros((0, self.nV, self.nV)) #Outer products (for computing thetaHat)
-    
+    self.defaultReward = defaultReward       
+   
   def reset(self):
     '''
     Starts a new simulation, adds initial state to data.
@@ -118,7 +121,7 @@ class Cartpole(VLenv):
     self.F_V = np.vstack((self.F_V, self.fV))
     self.F_Pi = np.vstack((self.F_Pi, self.fPi))
   
-  def step(self, action, bHat, epsilon, state = None):
+  def step(self, action, bHat, state = None):
     '''
     Takes a step from the current state, given action. Updates data matrices.
     
@@ -126,8 +129,7 @@ class Cartpole(VLenv):
     ----------
     state : current state
     action : action taken at current state
-    betahat : parameters of current policy
-    epsilon : epsilon (greedy) value
+    bHat : parameters of current policy
     
     Return
     ------
@@ -145,7 +147,7 @@ class Cartpole(VLenv):
     if not self.defaultReward:
       reward = -np.abs(sNext[0]) - np.abs(sNext[1])
     
-    mu = policyProbsBin(action, self.fPi, bHat, eps = epsilon)
+    mu = policyProbsBin(action, self.fPi, bHat, eps = self.epsilon)
     outerProd = np.outer(self.fV, self.fV) - self.gamma * np.outer(self.fV, fVNext)
     
     #Update data
@@ -158,10 +160,11 @@ class Cartpole(VLenv):
     self.Mu = np.append(self.Mu, mu)
     self.M = np.concatenate((self.M, [outerProd]), axis=0)
     
-    return self.fV, self.F_V, self.F_Pi, self.A, self.R, self.Mu, self.M
+    return self.fV, self.F_V, self.F_Pi, self.A, self.R, self.Mu, self.M, done 
     
-    
-    
+vlenv = Cartpole() 
+vlenv.reset() 
+vlenv.step(1, [0,0], 0)  
     
     
     
