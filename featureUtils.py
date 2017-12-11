@@ -8,6 +8,7 @@ This file contains functions for computing state features.
 """
 
 import numpy as np
+from itertools import product
 
 def intercept(s):
   '''
@@ -37,10 +38,12 @@ def getBasis(max_, min_, gridpoints):
   
   Returns
   -------
-  2d array of basis vectors ; size (gridpoints ^ state space dimension) x (state space dimension)
+  2d array of basis vectors ; of size (gridpoints ^ state space dimension) x (state space dimension)
   '''
   nS = len(max_)
-  return np.array([np.linspace(min_[i], max_[i], gridpoints) for i in range(nS)])
+  points = np.array([np.linspace(min_[i], max_[i], gridpoints) for i in range(nS)]) 
+  combos = product(range(gridpoints), repeat=nS) 
+  return np.array([points[list(range(nS)), combo] for combo in combos])
 
 def gRBF(s, basis, sigmaSq = 1):
   '''

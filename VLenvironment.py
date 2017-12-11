@@ -12,6 +12,7 @@ import numpy as np
 import gym
 from featureUtils import getBasis, gRBF, identity, intercept
 from policyUtils import policyProbsBin
+import pdb
 
 
 class VLenv():
@@ -34,17 +35,17 @@ class VLenv():
     pass 
   
   @abstractmethod
-  def step(self, state, action, betaHat, epsilon):
+  def step(self, action, betaHat, epsilon, state = None):
     '''
     Takes a step from the current state, given action, and adds results to data matrices.
     
     Parameters
     ----------
-    state : current state
     action : action taken at current state
     betahat : parameters of current policy
     epsilon : epsilon (greedy) value
-    
+    state : current state , or None 
+
     Return
     ------
     Next state, boolean for simulation having terminated, data matrices
@@ -86,7 +87,7 @@ class Cartpole(VLenv):
     if vFeatureChoice == 'gRBF': 
       vBasis = getBasis(Cartpole.MAX_STATE, Cartpole.MIN_STATE, vGridpoints)
       self.vFeatures = partial(gRBF, basis = vBasis, sigmaSq = vSigmaSq)
-      self.nV = vGridpoints**2 * 2
+      self.nV = vGridpoints**2 
     else: 
       self.vFeatures = intercept
       self.nV = Cartpole.NUM_STATE + 1
@@ -104,19 +105,20 @@ class Cartpole(VLenv):
     self.A    = np.zeros(0)                   #Actions
     self.R    = np.zeros(0)                   #Rewards
     self.Mu   = np.zeros(0)                   #Action probabilities
-    self.M    = np.zeros(0, self.nV, self.nV) #Outer products (for computing thetaHat)
-
+    self.M    = np.zeros((0, self.nV, self.nV)) #Outer products (for computing thetaHat)
     
   def reset(self):
     '''
     Starts a new simulation, adds initial state to data.
     '''
     s = self.env.reset()
-    self.fV = self.vFeatures(s[2:])
+    s = s[2:]
+    self.fV = self.vFeatures(s)
+    self.fPi = self.piFeatures(s)
     self.F_V = np.vstack((self.F_V, self.fV))
-    self.F_Pi = np.vstack((self.F_Pi, self.piFeatures(self.s)))
+    self.F_Pi = np.vstack((self.F_Pi, self.fPi))
   
-  def step(self, state, action, bHat, epsilon):
+  def step(self, action, bHat, epsilon, state = None):
     '''
     Takes a step from the current state, given action. Updates data matrices.
     
@@ -129,27 +131,34 @@ class Cartpole(VLenv):
     
     Return
     ------
-    Next state, boolean for simulation having terminated, data matrices
+    fV: features of next state
+    F_V: array of v-function features
+    F_Pi: array of policy features
+    A: array of actions
+    R: array of rewards 
+    Mu: array of action probabilities
+    M:  3d array of outer products 
     '''    
-    sNext, reward, done, _ = self.env.step(state)
+    sNext, reward, done, _ = self.env.step(action)
     sNext = sNext[2:]
     fVNext, fPiNext  = self.vFeatures(sNext), self.piFeatures(sNext)
-    if self.defaultReward:
+    if not self.defaultReward:
       reward = -np.abs(sNext[0]) - np.abs(sNext[1])
     
-    mu = policyProbsBin(action, state, bHat, eps = epsilon)
+    mu = policyProbsBin(action, self.fPi, bHat, eps = epsilon)
     outerProd = np.outer(self.fV, self.fV) - self.gamma * np.outer(self.fV, fVNext)
     
     #Update data
-    self.fV = fVNext
+    self.fV  = fVNext
+    self.fPi = fPiNext
     self.F_V = np.vstack((self.F_V, self.fV))
-    self.F_Pi = np.vstack((self.F_Pi, fPiNext))
+    self.F_Pi = np.vstack((self.F_Pi, self.fPi))
     self.A = np.append(self.A, action)
     self.R = np.append(self.R, reward)
     self.Mu = np.append(self.Mu, mu)
     self.M = np.concatenate((self.M, [outerProd]), axis=0)
     
-    
+    return self.fV, self.F_V, self.F_Pi, self.A, self.R, self.Mu, self.M
     
     
     
