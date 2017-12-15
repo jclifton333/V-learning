@@ -11,9 +11,6 @@ import numpy as np
 from itertools import product
 
 def intercept(s):
-  '''
-  Prepends 1 to state s to include intercept. 
-  '''
   return np.concatenate(([1], s))
   
 def identity(s):
@@ -45,7 +42,7 @@ def getBasis(max_, min_, gridpoints):
   combos = product(range(gridpoints), repeat=nS) 
   return np.array([points[list(range(nS)), combo] for combo in combos])
 
-def gRBF(s, basis, sigmaSq = 1):
+def gRBF(s, basis, sigmaSq):
   '''
   Gaussian radial basis function features.
   
