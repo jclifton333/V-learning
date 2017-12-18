@@ -23,7 +23,6 @@ def cartpoleVL(bts, epsilon, label, gamma, defaultReward, vArgs, piArgs, nEp, wr
   write : boolean for writing results to file 
   label : label for filename, if write is True
   '''
-  print(bts)
   if write: 
     fname = 'cartpole-results/cartpoleVL-eps-{}-bts-{}-{}.csv'.format(epsilon, bts, label)
     results = ''
@@ -68,9 +67,7 @@ if __name__ == "__main__":
   parser.add_argument('--nRep', type=int, help="Number of replicates.")
   parser.add_argument('--write', type=str2bool, help="Boolean for writing results to file.")
   args = parser.parse_args()
-  
-  print(args.bts)
-  
+    
   np.random.seed(args.randomSeed)
   
   vArgs  = {'featureChoice':args.featureChoiceV, 'sigmaSq':args.sigmaSqV, 'gridpoints':args.gridpointsV}
