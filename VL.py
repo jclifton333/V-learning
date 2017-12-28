@@ -17,9 +17,10 @@ beta refers to policy parameters.
 
 import numpy as np
 from VLopt import VLopt
+import scipy.linalg as la 
 import pdb
 
-def thetaPi(beta, policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, btsWts):  
+def thetaPi(beta, policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, btsWts, LU, subsetSize):  
   '''
   Estimates theta associated with policy indexed by beta.    
   
@@ -40,6 +41,8 @@ def thetaPi(beta, policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, btsWts):
   -------
   Estimate of theta 
   '''
+  subsetIxs = np.random.choice(Xtheta.shape[0], size = subsetSize, replace=False)
+  Xtheta, Xbeta = Xtheta[subsetIxs, :], Xbeta[subsetIxs, :]
   T, p = Xtheta.shape[0] - 1, Xtheta.shape[1]
   if len(A.shape) == 1:
     w = np.array([btsWts[i] * float(policyProbs(A[i], Xbeta[i,:], beta, eps=eps)) / Mu[i] for i in range(T)])
@@ -47,10 +50,13 @@ def thetaPi(beta, policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, btsWts):
     w = np.array([btsWts[i] * float(policyProbs(A[i,:], Xbeta[i,:], beta, eps=eps)) / Mu[i] for i in range(T)])
   sumRS = np.sum(np.multiply(Xtheta[:-1,:], np.multiply(w, R).reshape(T,1)), axis=0)
   sumM  = np.sum(np.multiply(M, w.reshape(T, 1, 1)), axis=0)
-  sumMInv = np.linalg.inv(sumM + 0.01*np.eye(p))
-  return np.dot(sumMInv, sumRS)
-
-def vPi(beta, policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, btsWts, refDist=None):
+  if LU: 
+    LU = la.lu_factor(sumM + 0.01*np.eye(p)) 
+    return la.lu_solve(LU, sumRS)
+  else: 
+    return la.solve(sumM + 0.01*np.eye(p), sumRS) 
+  
+def vPi(beta, policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, btsWts, LU, refDist=None):
   '''
   Returns estimated value of policy indexed by beta.  
   
@@ -74,13 +80,13 @@ def vPi(beta, policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, btsWts, refDist=None
   (Negative) estimated value of policy indexed by beta wrt refDist.  
   '''
   
-  theta = thetaPi(beta, policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, btsWts)
+  theta = thetaPi(beta, policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, btsWts, LU, refDist.shape[0])
   if refDist is None:
     return -np.mean(np.dot(Xtheta, theta))
   else: 
     return -np.mean(np.dot(refDist, theta))
 
-def betaOpt(policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, wStart=None, refDist=None, bts=True):
+def betaOpt(policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, LU, wStart=None, refDist=None, bts=True):
   '''
   Optimizes policy value over class of softmax policies indexed by beta. 
   Currently only working for binary action spaces! 
@@ -114,12 +120,12 @@ def betaOpt(policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, wStart=None, refDist=N
       btsWts = np.random.exponential(size = Xtheta.shape[0] - 1) 
     else: 
       btsWts = np.ones(Xtheta.shape[0] - 1)
-    objective = lambda beta: vPi(beta, policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, btsWts, refDist=refDist)
+    objective = lambda beta: vPi(beta, policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, btsWts, LU, refDist=refDist)
     if wStart is None:       
       wStart = np.zeros(nPi)
     betaOpt = VLopt(objective, x0=wStart)
-    #print('Optimal theta: {}'.format(thetaPiMulti(betaOpt, policyProbs, A, R, Xtheta, Xbeta, Mu, gamma, eps)))
-    return betaOpt
+    thetaOpt = thetaPiMulti(betaOpt, policyProbs, A, R, Xtheta, Xbeta, Mu, gamma, eps)
+    return {'betaOpt':betaOpt, 'thetaOpt':thetaOpt}
       
       
   

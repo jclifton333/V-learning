@@ -6,9 +6,47 @@ from VLenvironment import Cartpole, FlappyBirdEnv
 from VL import betaOpt
 from policyUtils import piBin, policyProbsBin
 from functools import partial 
-from utils import str2bool
+from utils import str2bool, intOrNone
+import time
+import pickle as pkl
 
-def cartpoleVL(bts, epsilon, label, gamma, defaultReward, vArgs, piArgs, nEp, write = False):
+class data(object):
+  def __init__(self, method, label):
+    '''
+    :param method: string describing hyperparameters, e.g. 'eps-0.05-gamma-0.9'
+    :param label: arbitrary label for writing to file 
+    '''
+    self.method = method
+    self.label = label
+    self.episode = []
+    self.score = []
+    self.beta_hat = []
+    self.theta_hat = []
+    self.name = '{}-{}.p'.format(self.method, self.label)
+    
+  def update(self, episode, score, beta_hat, theta_hat):
+    '''
+    Update data.
+    
+    :param episode: integer for episode
+    :param score: integer for score
+    :param beta_hat: array for policy parameter estimate
+    :param theta_hat: array for v-function parameter estimate
+    '''
+    self.episode.append(episode)
+    self.score.append(beta_hat)
+    self.beta_hat.append(beta_hat)
+    self.theta_hat.append(theta_hat)
+    
+  def write(self):
+    '''
+    Dump current data to pickle. 
+    '''
+    data_dict = {'label':self.label, 'method':self.method, 'episode':self.episode, 'score':self.score,
+                 'beta_hat':self.beta_hat, 'theta_hat':self.theta_hat}
+    pkl.dump(data_dict, open(self.name, 'wb')) 
+
+def cartpoleVL(bts, epsilon, label, gamma, defaultReward, vArgs, piArgs, nEp, fixUpTo, LU, write = False):
   '''
   Runs cartpole simulation with V-learning.
   
@@ -22,34 +60,44 @@ def cartpoleVL(bts, epsilon, label, gamma, defaultReward, vArgs, piArgs, nEp, wr
   bts : boolean for exponential Thompson sampling 
   write : boolean for writing results to file 
   label : label for filename, if write is True
-  '''
+  fixUpTo : if integer is given use first _fixUpTo_ observations as reference distribution; 
+            otherwise, always use entire observation history 
+  ''' 
+ 
   if write: 
-    fname = 'cartpole-results/cartpoleVL-eps-{}-bts-{}-{}.csv'.format(epsilon, bts, label)
-    results = ''
-  
+    method = 'eps-{}-bts-{}-fix-{}'.format(epsilon, bts, fixUpTo)
+    save_data = data(method, label)
+    
   #Initialize  
   env = Cartpole(gamma = gamma, epsilon = epsilon, defaultReward = defaultReward, vFeatureArgs = vArgs, piFeatureArgs = piArgs)
   bHat = np.zeros(env.nPi)
 
   #Run sim
+  totalStepsCounter = 0 
   for ep in range(nEp): 
+    t0 = time.time() 
     fPi = env.reset() 
     done = False 
     score = 0 
     while not done: 
+      totalStepsCounter += 1
       score += 1
       aProb = piBin(fPi, bHat) 
       a = np.random.random() < aProb * (1 - epsilon) 
       fPi, F_V, F_Pi, A, R, Mu, M, done = env.step(a, bHat)
-      if not done: 
-        bHat = betaOpt(policyProbsBin, epsilon, M, A, R, F_Pi, F_V, Mu, bts = bts)
-    print('Episode {} Score: {}'.format(ep, score))
+      if not done:
+        if fixUpTo is not None: 
+          refDist = F_V[:fixUpTo,:]
+        else:
+          refDist = F_V 
+        res = betaOpt(policyProbsBin, epsilon, M, A, R, F_Pi, F_V, Mu, LU, bts = bts, refDist = refDist)
+        bHat, tHat = res['bHat'], res['tHat']
+    t1 = time.time() 
+    print('Episode {} LU: {} Time per step: {} Score: {}'.format(ep, LU, (t1-t0)/score, score))
     if write: 
-      results += '{},{},{},{}\n'.format(label, 'eps-{}-bts-{}'.format(epsilon, bts), ep, score) 
-      fhandle = open(fname, 'w')
-      fhandle.write(results)
-      fhandle.close()
-      
+      save_data.update(ep, score, bHat, tHat)
+      save_data.write()
+
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument('--gamma', type=float, help="Discount factor.")
@@ -66,6 +114,8 @@ if __name__ == "__main__":
   parser.add_argument('--nEp', type=int, help="Number of episodes per replicate.")
   parser.add_argument('--nRep', type=int, help="Number of replicates.")
   parser.add_argument('--write', type=str2bool, help="Boolean for writing results to file.")
+  parser.add_argument('--fixUpTo', type=intOrNone, help="Integer for number of observations to include in reference distribution, or None")
+  parser.add_argument('--LU', type=str2bool, help="Boolean for using LU decomp")
   args = parser.parse_args()
     
   np.random.seed(args.randomSeed)
@@ -75,6 +125,6 @@ if __name__ == "__main__":
   
   pool = mp.Pool(args.nRep) 
   cartpoleVL_partial = partial(cartpoleVL, gamma = args.gamma, defaultReward = args.defaultReward, 
-                               vArgs = vArgs, piArgs = piArgs, nEp = args.nEp, write = args.write) 
+                               vArgs = vArgs, piArgs = piArgs, nEp = args.nEp, fixUpTo = args.fixUpTo, LU = args.LU, write = args.write) 
   argList = [(args.bts, args.epsilon, label) for label in range(args.nRep)]
   pool.starmap(cartpoleVL_partial, argList) 

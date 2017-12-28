@@ -136,7 +136,7 @@ class Cartpole(VLenv):
     
     Return
     ------
-    fV: features of next state
+    fPi: features of next state
     F_V: array of v-function features
     F_Pi: array of policy features
     A: array of actions

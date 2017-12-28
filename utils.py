@@ -16,3 +16,16 @@ def str2bool(v):
       return False
   else:
       raise argparse.ArgumentTypeError('Boolean value expected.')
+
+def intOrNone(v):
+  '''
+  For parsing integer or None arguments with argparse. 
+  
+  Usage: parser.add_argument("--number", type=intOrNone, help="Integer or None.")
+  '''  
+  if v == 'None':
+    return None 
+  elif v.isdigit(): 
+    return int(v)
+  else: 
+    return arparse.ArgumentTypeError('Integer or None expected.') 

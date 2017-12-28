@@ -8,6 +8,7 @@ This file contains functions that return actions and probabilities associated wi
 """
 
 import numpy as np
+import pdb
 
 def piBin(s, beta):
   '''
@@ -25,7 +26,7 @@ def piBin(s, beta):
   '''
   
   dot = np.dot(s, beta)
-  max_ = np.max((dot,0)) #Subtract this in exponent for numerical stability
+  max_ = np.max((dot,0)) #Subtract this in exponent to avoid overflow
   return np.exp(dot - max_) / (np.exp(-max_) + np.exp(dot - max_))
  
   
