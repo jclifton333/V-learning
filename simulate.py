@@ -2,7 +2,7 @@ import numpy as np
 import pdb
 import argparse 
 import multiprocessing as mp
-from VLenvironment import Cartpole, FlappyBirdEnv
+from VLenvironment import Cartpole, FlappyBirdEnv, randomFiniteMDP
 from VL import betaOpt
 from policyUtils import piBin, policyProbsBin
 from functools import partial 
@@ -10,19 +10,34 @@ from utils import str2bool, intOrNone
 import time
 import pickle as pkl
 
+'''
+Global simulation variables. 
+'''
+VALID_ENVIRONMENT_NAMES = ['FlappyBird', 'randomFiniteMDP', 'Cartpole'] 
+#Cartpole
+DEFAULT_REWARD = True
+
+#randomFiniteMDP
+NUM_FINITE_STATE = 3 #Number of states if randomFiniteMDP is chosen
+MAX_T_FINITE = 50 #Max number of timesteps per episode if randomFiniteMDP is chosen
+
+#Flappy Bird
+DISPLAY_SCREEN = False
+
 class data(object):
-  def __init__(self, method, label):
+  def __init__(self, environment, method, label):
     '''
     :param method: string describing hyperparameters, e.g. 'eps-0.05-gamma-0.9'
     :param label: arbitrary label for writing to file 
     '''
+    self.environment = environment
     self.method = method
     self.label = label
     self.episode = []
     self.score = []
     self.beta_hat = []
     self.theta_hat = []
-    self.name = '{}-{}.p'.format(self.method, self.label)
+    self.name = '{}-{}-{}.p'.format(self.environment, self.method, self.label)
     
   def update(self, episode, score, beta_hat, theta_hat):
     '''
@@ -34,7 +49,7 @@ class data(object):
     :param theta_hat: array for v-function parameter estimate
     '''
     self.episode.append(episode)
-    self.score.append(beta_hat)
+    self.score.append(score)
     self.beta_hat.append(beta_hat)
     self.theta_hat.append(theta_hat)
     
@@ -44,14 +59,26 @@ class data(object):
     '''
     data_dict = {'label':self.label, 'method':self.method, 'episode':self.episode, 'score':self.score,
                  'beta_hat':self.beta_hat, 'theta_hat':self.theta_hat}
-    pkl.dump(data_dict, open(self.name, 'wb')) 
-
-def cartpoleVL(bts, epsilon, label, gamma, defaultReward, vArgs, piArgs, nEp, fixUpTo, LU, write = False):
+    filename = 'results/{}'.format(self.environment) + self.name 
+    pkl.dump(data_dict, open(filename, 'wb')) 
+    
+def getEnvironment(envName, gamma, epsilon, vFeatureArgs, piFeatureArgs):
+  if envName == 'Cartpole':
+    return Cartpole(gamma, epsilon, DEFAULT_REWARD, vFeatureArgs, piFeatureArgs)
+  elif envName == 'randomFiniteMDP':
+    return randomFiniteMDP(NUM_FINITE_STATE, MAX_T_FINITE, gamma, epsilon, vFeatureArgs, piFeatureArgs)
+  elif envName == 'FlappyBird':
+    return FlappyBirdEnv(gamma, epsilon, vFeatureArgs, piFeatureArgs, displayScreen = DISPLAY_SCREEN)
+  else: 
+    raise ValueError('Incorrect environment name.  Choose name in {}.'.format(VALID_ENVIRONMENT_NAMES))
+    
+def simulate(envName, bts, epsilon, label, gamma, defaultReward, vArgs, piArgs, nEp, fixUpTo, LU, write = False):
   '''
-  Runs cartpole simulation with V-learning.
+  Runs simulation with V-learning for an environment with a binary action space.
   
   Parameters 
   ----------
+  envName : string in VALID_ENVIRONMENT_NAMES specifying environment to simulate
   gamma : discount factor 
   epsilon : exploration rate 
   defaultReward : use default reward (use shaped reward if False)
@@ -62,14 +89,13 @@ def cartpoleVL(bts, epsilon, label, gamma, defaultReward, vArgs, piArgs, nEp, fi
   label : label for filename, if write is True
   fixUpTo : if integer is given use first _fixUpTo_ observations as reference distribution; 
             otherwise, always use entire observation history 
-  ''' 
- 
+  '''  
   if write: 
     method = 'eps-{}-bts-{}-fix-{}'.format(epsilon, bts, fixUpTo)
-    save_data = data(method, label)
+    save_data = data(envName, method, label)
     
   #Initialize  
-  env = Cartpole(gamma = gamma, epsilon = epsilon, defaultReward = defaultReward, vFeatureArgs = vArgs, piFeatureArgs = piArgs)
+  env = getEnvironment(envName, gamma, epsilon, vArgs, piArgs)
   bHat = np.zeros(env.nPi)
 
   #Run sim
@@ -91,7 +117,7 @@ def cartpoleVL(bts, epsilon, label, gamma, defaultReward, vArgs, piArgs, nEp, fi
         else:
           refDist = F_V 
         res = betaOpt(policyProbsBin, epsilon, M, A, R, F_Pi, F_V, Mu, LU, bts = bts, refDist = refDist)
-        bHat, tHat = res['bHat'], res['tHat']
+        bHat, tHat = res['betaHat'], res['thetaHat']
     t1 = time.time() 
     print('Episode {} LU: {} Time per step: {} Score: {}'.format(ep, LU, (t1-t0)/score, score))
     if write: 
@@ -100,6 +126,7 @@ def cartpoleVL(bts, epsilon, label, gamma, defaultReward, vArgs, piArgs, nEp, fi
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
+  parser.add_argument('envName', type=str, help="String for environment name.", choices=VALID_ENVIRONMENT_NAMES)
   parser.add_argument('--gamma', type=float, help="Discount factor.")
   parser.add_argument('--epsilon', type=float, help="Exploration rate.")
   parser.add_argument('--bts', type=str2bool, help="Boolean for using (exponential) BTS.")
@@ -110,7 +137,6 @@ if __name__ == "__main__":
   parser.add_argument('--gridpointsPi', type=int, help="Number of basis function points per dimension for policy features.")
   parser.add_argument('--featureChoicePi', choices=['gRBF', 'identity', 'intercept'], help="Choice of policy features.")
   parser.add_argument('--randomSeed', type=int) 
-  parser.add_argument('--defaultReward', type=str2bool, help="Use default reward (shaped reward if False).")
   parser.add_argument('--nEp', type=int, help="Number of episodes per replicate.")
   parser.add_argument('--nRep', type=int, help="Number of replicates.")
   parser.add_argument('--write', type=str2bool, help="Boolean for writing results to file.")
@@ -124,7 +150,7 @@ if __name__ == "__main__":
   piArgs = {'featureChoice':'identity', 'sigmaSq':None, 'gridpoints':None} #Currently IGNORING Pi arguments, using identity 
   
   pool = mp.Pool(args.nRep) 
-  cartpoleVL_partial = partial(cartpoleVL, gamma = args.gamma, defaultReward = args.defaultReward, 
-                               vArgs = vArgs, piArgs = piArgs, nEp = args.nEp, fixUpTo = args.fixUpTo, LU = args.LU, write = args.write) 
+  simulate_partial = partial(simulate, envName = args.envName, gamma = args.gamma, vArgs = vArgs, piArgs = piArgs, nEp = args.nEp, fixUpTo = args.fixUpTo, 
+                               LU = args.LU, write = args.write) 
   argList = [(args.bts, args.epsilon, label) for label in range(args.nRep)]
-  pool.starmap(cartpoleVL_partial, argList) 
+  pool.starmap(simulate, argList) 

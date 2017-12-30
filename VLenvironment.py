@@ -64,6 +64,28 @@ class VLenv(object):
        nF = self.NUM_STATE + 1
     return featureFunc, nF
   
+  def _update_data_binary(self, action, bHat, done, reward, sNext):
+    '''
+    Updates data matrices for binary action spaces.
+    '''
+    #Update data    
+    fVNext, fPiNext  = self.vFeatures(sNext), self.piFeatures(sNext)    
+    mu = policyProbsBin(action, self.fPi, bHat, eps = self.epsilon)
+    outerProd = np.outer(self.fV, self.fV) - self.gamma * np.outer(self.fV, fVNext)
+    
+    self.fV  = fVNext
+    self.fPi = fPiNext
+    self.A = np.append(self.A, action)
+    self.R = np.append(self.R, reward)
+    self.Mu = np.append(self.Mu, mu)
+    self.M = np.concatenate((self.M, [outerProd]), axis=0)
+
+    if not done: 
+      self.F_V = np.vstack((self.F_V, self.fV))
+      self.F_Pi = np.vstack((self.F_Pi, self.fPi))
+
+    return self.fPi, self.F_V, self.F_Pi, self.A, self.R, self.Mu, self.M, done
+  
   @abstractmethod
   def reset(self):
     '''
@@ -136,35 +158,24 @@ class Cartpole(VLenv):
     
     Return
     ------
-    fPi: features of next state
-    F_V: array of v-function features
-    F_Pi: array of policy features
-    A: array of actions
-    R: array of rewards 
-    Mu: array of action probabilities
-    M:  3d array of outer products 
+    data tuple, with elements
+      fPi: features of next state
+      F_V: array of v-function features
+      F_Pi: array of policy features
+      A: array of actions
+      R: array of rewards 
+      Mu: array of action probabilities
+      M:  3d array of outer products 
+      done: boolean for end of episode
     '''    
     sNext, reward, done, _ = self.env.step(action)
     sNext = sNext[2:]
-    fVNext, fPiNext  = self.vFeatures(sNext), self.piFeatures(sNext)
     if not self.defaultReward:
       reward = -np.abs(sNext[0]) - np.abs(sNext[1])
     
-    mu = policyProbsBin(action, self.fPi, bHat, eps = self.epsilon)
-    outerProd = np.outer(self.fV, self.fV) - self.gamma * np.outer(self.fV, fVNext)
-    
-    #Update data
-    self.fV  = fVNext
-    self.fPi = fPiNext
-    self.A = np.append(self.A, action)
-    self.R = np.append(self.R, reward)
-    self.Mu = np.append(self.Mu, mu)
-    self.M = np.concatenate((self.M, [outerProd]), axis=0)
-    if not done: 
-      self.F_V = np.vstack((self.F_V, self.fV))
-      self.F_Pi = np.vstack((self.F_Pi, self.fPi))
+    data = self._update_data_binary(action, bHat, done, reward, sNext)    
+    return data 
       
-    return self.fPi, self.F_V, self.F_Pi, self.A, self.R, self.Mu, self.M, done 
     
 class FlappyBirdEnv(VLenv):
   STATE_NAMES = ['next_pipe_bottom_y', 'next_pipe_dist_to_player', 
@@ -228,41 +239,125 @@ class FlappyBirdEnv(VLenv):
     
     Return
     ------
-    fV: features of next state
-    F_V: array of v-function features
-    F_Pi: array of policy features
-    A: array of actions
-    R: array of rewards 
-    Mu: array of action probabilities
-    M:  3d array of outer products 
+    data tuple, with elements
+      fPi: features of next state
+      F_V: array of v-function features
+      F_Pi: array of policy features
+      A: array of actions
+      R: array of rewards 
+      Mu: array of action probabilities
+      M:  3d array of outer products 
+      done: boolean for end of episode
     '''    
+    
     #Get next observation 
     reward = self.env.act(FlappyBirdEnv.ACTION_LIST[action])
     sDict  = self.gameStateReturner.getGameState() 
     sNext  = self.stateFromDict(sDict)   
     done = self.env.game_over() 
-    
-    fVNext, fPiNext  = self.vFeatures(sNext), self.piFeatures(sNext)
-    
-    mu = policyProbsBin(action, self.fPi, bHat, eps = self.epsilon)
-    outerProd = np.outer(self.fV, self.fV) - self.gamma * np.outer(self.fV, fVNext)
-    
-    #Update data
-    self.fV  = fVNext
-    self.fPi = fPiNext
-    self.A = np.append(self.A, action)
-    self.R = np.append(self.R, reward)
-    self.Mu = np.append(self.Mu, mu)
-    self.M = np.concatenate((self.M, [outerProd]), axis=0)
 
-    if not done: 
-      self.F_V = np.vstack((self.F_V, self.fV))
-      self.F_Pi = np.vstack((self.F_Pi, self.fPi))
-    
-    return self.fPi, self.F_V, self.F_Pi, self.A, self.R, self.Mu, self.M, done 
+    data = self._update_data_binary(action, bHat, done, reward, sNext)    
+    return data
   
-
+class randomFiniteMDP(VLenv):
+  MAX_STATE = 1
+  MIN_STATE = 0
+  
+  def __init__(self, nS, maxT, gamma = 0.9, epsilon = 0.1, vFeatureArgs = {'featureChoice':'identity'}, piFeatureArgs = {'featureChoice':'identity'}):
+    '''
+    Initializes randomFiniteMDP object, including generating the transition distributions and rewards and storing in mdpDict attribute.
     
+    Currently only handles binary action spaces!
+    
+    Parameters
+    ----------
+    nA: number of actions in MDP
+    nS: number of states in MDP     
+    maxT: max number of steps in episode
+    gamma : discount factor
+    epsilon : for epsilon - greedy 
+    vFeatureArgs :  Dictionary {'featureChoice':featureChoice}, where featureChoice is a string in ['gRBF', 'intercept', 'identity'].
+                   If featureChoice == 'gRBF', then items 'gridpoints' and 'sigmaSq' must also be provided. 
+    piFeatureArgs : '' 
+    '''
+
+    VLenv.__init__(self, randomFiniteMDP.MAX_STATE, randomFiniteMDP.MIN_STATE, nS, gamma, epsilon, vFeatureArgs, piFeatureArgs)
+    self.nS = nS
+    self.nA = 2
+    transitionMatrices = np.random.dirichlet(alpha=np.ones(nS), size=(self.nA, nS)) #nA x nS x nS array of nS x nS transition matrices, uniform on simplex
+    self.maxT = maxT
+    self.transitionMatrices = transitionMatrices
+    self.mdpDict= {}
+    
+    #Create transition dictionary of form {s_0 : {a_0: [( P(s_0 -> s_0), s_0, reward), ( P(s_0 -> s_1), s_1, reward), ...], a_1:...}, s_1:{...}, ...}
+    #Rewards are generated uniformly on [-10, 10]
+    for s in range(nS):
+        self.mdpDict[s] = {} 
+        for a in range(self.nA):
+            self.mdpDict[s][a] = [(transitionMatrices[a, s, sp1], sp1, np.random.uniform(low=-10, high=10)) for sp1 in range(nS)]
+            
+  def onehot(self, s):
+    '''
+    :parameter s: integer for state 
+    :return s_dummy: onehot encoding of s
+    '''
+    s_dummy = np.zeros(self.nS)
+    s_dummy[s] = 1
+    return s_dummy
+
+  def reset(self):
+    '''
+    Starts a new simulation at a random state, adds initial state features to data.
+    '''
+    s = np.random.choice(self.nS)
+    s_dummy = self.onehot(s)
+    self.s = s
+    self.t = 0 
+    self.fV = self.vFeatures(s_dummy)
+    self.fPi = self.piFeatures(s_dummy) 
+    self.F_V = np.vstack((self.F_V, self.fV))
+    self.F_Pi = np.vstack((self.F_Pi, self.fPi)) 
+    return self.fPi 
+  
+  def step(self, action, bHat, state = None):
+    '''
+    Takes a step from the current state, given action. Updates data matrices.
+    
+    Parameters
+    ----------
+    state : current state
+    action : action taken at current state
+    bHat : parameters of current policy
+    
+    Return
+    ------
+    data tuple, with elements
+      fV: features of next state
+      F_V: array of v-function features
+      F_Pi: array of policy features
+      A: array of actions
+      R: array of rewards 
+      Mu: array of action probabilities
+      M:  3d array of outer products 
+      done: boolean for end of episode
+    '''    
+
+    #Get next observation
+    self.t += 1
+    nextStateDistribution = self.transitionMatrices[action, self.s, :]
+    sNext = np.random.choice(self.nS, p=nextStateDistribution)
+    reward = self.mdpDict[self.s][action][sNext][2]
+    done = self.t == self.maxT
+          
+    data = self._update_data_binary(action, bHat, done, reward, self.onehot(sNext))    
+    return data 
+
+#Test
+m = randomFiniteMDP(3, 10)
+m.reset()
+for i in range(9):
+  res = m.step(1, [1,1,1])
+print(res)
 
     
     

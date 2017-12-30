@@ -20,7 +20,7 @@ from VLopt import VLopt
 import scipy.linalg as la 
 import pdb
 
-def thetaPi(beta, policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, btsWts, LU, subsetSize):  
+def thetaPi(beta, policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, btsWts, LU):  
   '''
   Estimates theta associated with policy indexed by beta.    
   
@@ -41,8 +41,6 @@ def thetaPi(beta, policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, btsWts, LU, subs
   -------
   Estimate of theta 
   '''
-  subsetIxs = np.random.choice(Xtheta.shape[0], size = subsetSize, replace=False)
-  Xtheta, Xbeta = Xtheta[subsetIxs, :], Xbeta[subsetIxs, :]
   T, p = Xtheta.shape[0] - 1, Xtheta.shape[1]
   if len(A.shape) == 1:
     w = np.array([btsWts[i] * float(policyProbs(A[i], Xbeta[i,:], beta, eps=eps)) / Mu[i] for i in range(T)])
@@ -80,7 +78,7 @@ def vPi(beta, policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, btsWts, LU, refDist=
   (Negative) estimated value of policy indexed by beta wrt refDist.  
   '''
   
-  theta = thetaPi(beta, policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, btsWts, LU, refDist.shape[0])
+  theta = thetaPi(beta, policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, btsWts, LU)
   if refDist is None:
     return -np.mean(np.dot(Xtheta, theta))
   else: 
@@ -113,8 +111,9 @@ def betaOpt(policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, LU, wStart=None, refDi
   Estimate of beta
   '''
   nPi = Xbeta.shape[1]
-  if Xtheta.shape[0] < Xtheta.shape[1]: 
-    return np.zeros(nPi) 
+  nV = Xtheta.shape[1]
+  if Xtheta.shape[0] < nV: 
+    return {'betaHat':np.zeros(nPi), 'thetaHat':np.zeros(nV)}
   else:    
     if bts: 
       btsWts = np.random.exponential(size = Xtheta.shape[0] - 1) 
@@ -124,11 +123,10 @@ def betaOpt(policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, LU, wStart=None, refDi
     if wStart is None:       
       wStart = np.zeros(nPi)
     betaOpt = VLopt(objective, x0=wStart)
-    thetaOpt = thetaPiMulti(betaOpt, policyProbs, A, R, Xtheta, Xbeta, Mu, gamma, eps)
-    return {'betaOpt':betaOpt, 'thetaOpt':thetaOpt}
+    thetaOpt = thetaPi(betaOpt, policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, btsWts, LU)
+    return {'betaHat':betaOpt, 'thetaHat':thetaOpt}
       
       
-  
   
   
 

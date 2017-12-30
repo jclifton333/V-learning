@@ -1,5 +1,5 @@
 #Ignore results
-cartpole-results/
+results/
 
 
 ## Python recommended ignores (source: https://github.com/github/gitignore/blob/master/Python.gitignore)

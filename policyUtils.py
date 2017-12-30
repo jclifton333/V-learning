@@ -50,3 +50,27 @@ def policyProbsBin(a, s, beta, eps = 0.0):
   p = piBin(s, beta)
   return a*p*(1-eps) + (1-a)*(1-p*(1-eps))
 
+def piMulti(s, beta):
+  '''
+  Returns probability distribution over actions at state s given policy parameters beta.
+  
+  Parameters
+  ----------
+  s: state (1d array)
+  beta: policy parameters (nA x nPi 2d array; rows correspond to actions)
+  
+  Returns
+  -------
+  Softmax policy (array) with parameters beta at state s.  
+  '''
+  dots = np.array([np.dot(s, beta[i,:]) for i in range(beta.shape[0])])
+  max_ = np.max(dots)
+  exp_list = np.array([np.exp(dot - max_) for dot in dots])
+  return exp_list / np.sum(exp_list)
+
+def policyProbsMulti(a, s, beta, eps = 0.0):
+  '''
+  For multi action space ; returns probability of taking action a at state s given policy parameter array
+  beta and epsilon = eps.
+  '''
+  
