@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # V-learning
 
 ###Method 
@@ -35,6 +34,3 @@ bash simulate.sh
 
 from root will create a local `results` directory, run simulations with settings specified in `simulate.sh`, 
 and save results if `WRITE` is set to `'True'`. 
-
- 
->>>>>>> 584573cef5b8dacbbe5fd48fdd3e5aebaf87b3a8
