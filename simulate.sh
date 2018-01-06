@@ -1,19 +1,20 @@
 #!/bin/bash
-GAMMA=0.9
-SIGMA_SQ_V=1.0 
-GRIDPOINTS_V=5 
-FEATURE_CHOICE_V='gRBF' 
-SIGMA_SQ_PI=1.0
-GRIDPOINTS_PI=3 
-FEATURE_CHOICE_PI='identity'
-NUM_EP=1000
-NUM_REP=1
-SEED=3
-FIX_UP_TO=400
-WRITE='False'
-ENV_NAME='Cartpole'
 
-mkdir results
+GAMMA=0.9                            #Discount factor
+SIGMA_SQ_V=1.0                       #Variance for v-function features, if gRBF is used 
+GRIDPOINTS_V=5                       #Number of points per dimension to use for v-function feature basis, if gRBF is used 
+FEATURE_CHOICE_V='gRBF'              #Choice of features for v-function ('identity', 'intercept', or 'gRBF')
+SIGMA_SQ_PI=1.0                      #Variance for policy features, if gRBF is used
+GRIDPOINTS_PI=3                      #Number of points per dimension for policy feature basis, if gRBF is used 
+FEATURE_CHOICE_PI='identity'         #Choice of features for policy ('identity', 'intercept', or 'gRBF')
+NUM_EP=1000                          #Number of episodes 
+NUM_REP=1                            #Number of replicates; simulate.py uses one core per rep! 
+SEED=3                               #Random seed 
+FIX_UP_TO=400                        #Number of observations to use in reference distribution
+WRITE='False'                        #Boolean for writing results to file 
+ENV_NAME='Cartpole'                  #Simulation environment name ('Cartpole', 'FlappyBirdEnv', or 'randomFiniteMDP'
+
+mkdir -p results
 
 #python3 simulate.py --envName="$ENV_NAME" --gamma="$GAMMA" --epsilon=0.05 --bts='False' --sigmaSqV="$SIGMA_SQ_V" \
 #  --initializer='None' --gridpointsV="$GRIDPOINTS_V" --featureChoiceV="$FEATURE_CHOICE_V" --sigmaSqPi="$SIGMA_SQ_PI" \

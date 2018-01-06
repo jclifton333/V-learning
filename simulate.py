@@ -1,3 +1,6 @@
+import sys 
+sys.path.append('src')
+
 import numpy as np
 import pdb
 import argparse 
@@ -127,7 +130,7 @@ def simulate(bts, epsilon, initializer, label, envName, gamma, vArgs, piArgs, nE
       totalStepsCounter += 1
       aProb = piBin(fPi, betaHat) 
       a = np.random.random() < aProb * (1 - epsilon) 
-      fPi, F_V, F_Pi, A, R, Mu, M, done, reward = env.step(a, bHat)
+      fPi, F_V, F_Pi, A, R, Mu, M, done, reward = env.step(a, betaHat)
       if not done:
         score += 1 
         if fixUpTo is not None: 
@@ -138,9 +141,9 @@ def simulate(bts, epsilon, initializer, label, envName, gamma, vArgs, piArgs, nE
         betaHat = res['betaHat']
     print('Episode {} Score: {}'.format(ep, score))
     if envName == 'randomFiniteMDP': #Display policy and value information for finite MDP
-      env.evaluatePolicies(bHat)
+      env.evaluatePolicies(betaHat)
     if write: 
-      save_data.update(ep, score, bHat, tHat)
+      save_data.update(ep, score, betaHat, tHat)
       save_data.write()
 
 if __name__ == "__main__":
