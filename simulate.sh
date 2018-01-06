@@ -15,6 +15,7 @@ WRITE='False'                        #Boolean for writing results to file
 ENV_NAME='Cartpole'                  #Simulation environment name ('Cartpole', 'FlappyBirdEnv', or 'randomFiniteMDP'
 
 mkdir -p results
+mkdir -p results/$ENV_NAME
 
 #python3 simulate.py --envName="$ENV_NAME" --gamma="$GAMMA" --epsilon=0.05 --bts='False' --sigmaSqV="$SIGMA_SQ_V" \
 #  --initializer='None' --gridpointsV="$GRIDPOINTS_V" --featureChoiceV="$FEATURE_CHOICE_V" --sigmaSqPi="$SIGMA_SQ_PI" \
