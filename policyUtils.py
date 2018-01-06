@@ -8,7 +8,6 @@ This file contains functions that return actions and probabilities associated wi
 """
 
 import numpy as np
-import pdb
 
 def piBin(s, beta):
   '''
@@ -68,9 +67,4 @@ def piMulti(s, beta):
   exp_list = np.array([np.exp(dot - max_) for dot in dots])
   return exp_list / np.sum(exp_list)
 
-def policyProbsMulti(a, s, beta, eps = 0.0):
-  '''
-  For multi action space ; returns probability of taking action a at state s given policy parameter array
-  beta and epsilon = eps.
-  '''
   

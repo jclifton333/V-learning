@@ -18,9 +18,8 @@ beta refers to policy parameters.
 import numpy as np
 from VLopt import VLopt
 import scipy.linalg as la 
-import pdb
 
-def thetaPi(beta, policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, btsWts, LU):  
+def thetaPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts):  
   '''
   Estimates theta associated with policy indexed by beta.    
   
@@ -33,28 +32,25 @@ def thetaPi(beta, policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, btsWts, LU):
   M : array of matrices outer(psi_t, psi_t) - gamma*outer(psi_t, psi_tp1) (3d array of size T x nV x nV)
   A : array of actions (1d or 2d array)
   R : array of rewards (1d array)
-  Xbeta : Policy features at each timestep (2d array of size T x nPi)
-  Xtheta : V-function features at each timestep (2d array of size T x nV)
+  F_Pi : Policy features at each timestep (2d array of size T x nPi)
+  F_V : V-function features at each timestep (2d array of size T x nV)
   Mu : Probabilities of observed actions under policies mu_t (1d array of size T)
   
   Returns
   -------
   Estimate of theta 
   '''
-  T, p = Xtheta.shape[0] - 1, Xtheta.shape[1]
+  T, p = F_V.shape[0] - 1, F_V.shape[1]
   if len(A.shape) == 1:
-    w = np.array([btsWts[i] * float(policyProbs(A[i], Xbeta[i,:], beta, eps=eps)) / Mu[i] for i in range(T)])
+    w = np.array([btsWts[i] * float(policyProbs(A[i], F_Pi[i,:], beta, eps=eps)) / Mu[i] for i in range(T)])
   else:
-    w = np.array([btsWts[i] * float(policyProbs(A[i,:], Xbeta[i,:], beta, eps=eps)) / Mu[i] for i in range(T)])
-  sumRS = np.sum(np.multiply(Xtheta[:-1,:], np.multiply(w, R).reshape(T,1)), axis=0)
+    w = np.array([btsWts[i] * float(policyProbs(A[i,:], F_Pi[i,:], beta, eps=eps)) / Mu[i] for i in range(T)])
+  sumRS = np.sum(np.multiply(F_V[:-1,:], np.multiply(w, R).reshape(T,1)), axis=0)
   sumM  = np.sum(np.multiply(M, w.reshape(T, 1, 1)), axis=0)
-  if LU: 
-    LU = la.lu_factor(sumM + 0.01*np.eye(p)) 
-    return la.lu_solve(LU, sumRS)
-  else: 
-    return la.solve(sumM + 0.01*np.eye(p), sumRS) 
+  LU = la.lu_factor(sumM + 0.01*np.eye(p)) 
+  return la.lu_solve(LU, sumRS)
   
-def vPi(beta, policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, btsWts, LU, refDist=None):
+def vPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, refDist=None):
   '''
   Returns estimated value of policy indexed by beta.  
   
@@ -67,24 +63,24 @@ def vPi(beta, policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, btsWts, LU, refDist=
   M : array of matrices outer(psi_t, psi_t) - gamma*outer(psi_t, psi_tp1) (3d array of size T x nV x nV)
   A : array of actions (1d or 2d array)
   R : array of rewards (1d array)
-  Xbeta : Policy features at each timestep (2d array of size T x nPi)
-  Xtheta : V-function features at each timestep (2d array of size T x nV)
+  F_Pi : Policy features at each timestep (2d array of size T x nPi)
+  F_V : V-function features at each timestep (2d array of size T x nV)
   Mu : Probabilities of observed actions under policies mu_t (1d array of size T)
   refDist : Reference distribution for estimating value (2d array with v-function features as rows).
-           If None, uses Xtheta as reference distribution.  
+           If None, uses F_V as reference distribution.  
   
   Returns
   -------
   (Negative) estimated value of policy indexed by beta wrt refDist.  
   '''
   
-  theta = thetaPi(beta, policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, btsWts, LU)
+  theta = thetaPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts)
   if refDist is None:
-    return -np.mean(np.dot(Xtheta, theta))
+    return -np.mean(np.dot(F_V, theta))
   else: 
     return -np.mean(np.dot(refDist, theta))
 
-def betaOpt(policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, LU, wStart=None, refDist=None, bts=True):
+def betaOpt(policyProbs, eps, M, A, R, F_Pi, F_V, Mu, wStart=None, refDist=None, bts=True, initializer=None):
   '''
   Optimizes policy value over class of softmax policies indexed by beta. 
   Currently only working for binary action spaces! 
@@ -97,34 +93,36 @@ def betaOpt(policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, LU, wStart=None, refDi
   M: array of matrices outer(psi_t, psi_t) - gamma*outer(psi_t, psi_tp1) (3d array of size T x nV x nV)
   A: array of actions (1d or 2d array)
   R: array of rewards (1d array)
-  Xbeta: Policy features at each timestep (2d array of size T x nPi)
-  Xtheta: V-function features at each timestep (2d array of size T x nV)
+  F_Pi: Policy features at each timestep (2d array of size T x nPi)
+  F_V: V-function features at each timestep (2d array of size T x nV)
   Mu: Probabilities of observed actions under policies mu_t (1d array of size T)
   wStart : Warm start for beta optimization (1d array). 
            If None, initializes to all 0s.  
   refDist: Reference distribution for estimating value (2d array with v-function features as rows).
-           If None, use Xtheta as reference distribution.  
-
+           If None, use F_V as reference distribution.  
+  bts: boolean for using (exponential) bootstrap Thompson sampling
+  initializer: value in [None, 'basinhop', 'multistart'] for optimizer initialization method
   
   Returns
   -------
-  Estimate of beta
+  Dictionary {'betaHat':estimate of beta, 'thetaHat':estimate of theta, 'objective':objective function (of policy parameters)}
   '''
-  nPi = Xbeta.shape[1]
-  nV = Xtheta.shape[1]
-  if Xtheta.shape[0] < nV: 
-    return {'betaHat':np.zeros(nPi), 'thetaHat':np.zeros(nV)}
+  nPi = F_Pi.shape[1]
+  nV = F_V.shape[1]
+  if F_V.shape[0] < nV: 
+    objective = lambda x: None 
+    return {'betaHat':np.zeros(nPi), 'thetaHat':np.zeros(nV), 'objective':objective}
   else:    
     if bts: 
-      btsWts = np.random.exponential(size = Xtheta.shape[0] - 1) 
+      btsWts = np.random.exponential(size = F_V.shape[0] - 1) 
     else: 
-      btsWts = np.ones(Xtheta.shape[0] - 1)
-    objective = lambda beta: vPi(beta, policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, btsWts, LU, refDist=refDist)
+      btsWts = np.ones(F_V.shape[0] - 1)
+    objective = lambda beta: vPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, refDist=refDist)
     if wStart is None:       
-      wStart = np.zeros(nPi)
-    betaOpt = VLopt(objective, x0=wStart)
-    thetaOpt = thetaPi(betaOpt, policyProbs, eps, M, A, R, Xbeta, Xtheta, Mu, btsWts, LU)
-    return {'betaHat':betaOpt, 'thetaHat':thetaOpt}
+      wStart = np.random.normal(scale=1000, size=nPi)
+    betaOpt = VLopt(objective, x0=wStart, initializer=initializer)
+    thetaOpt = thetaPi(betaOpt, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts)
+    return {'betaHat':betaOpt, 'thetaHat':thetaOpt, 'objective':objective}
       
       
   

@@ -1,5 +1,6 @@
 #Ignore results
 results/
+diagnostic-data/
 
 
 ## Python recommended ignores (source: https://github.com/github/gitignore/blob/master/Python.gitignore)

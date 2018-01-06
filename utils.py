@@ -29,3 +29,16 @@ def intOrNone(v):
     return int(v)
   else: 
     return arparse.ArgumentTypeError('Integer or None expected.') 
+    
+def strOrNone(v):
+  '''
+  For parsing string or None arguments with argparse. 
+  
+  Usage: parser.add_argument("--number", type=intOrNone, help="String or None.")
+  '''  
+  if v == 'None':
+    return None 
+  elif isinstance(v, str): 
+    return v
+  else: 
+    return arparse.ArgumentTypeError('String or None expected.') 

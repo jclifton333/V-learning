@@ -13,7 +13,8 @@ import gym
 from ple.games.flappybird import FlappyBird
 from ple import PLE
 from featureUtils import getBasis, gRBF, identity, intercept
-from policyUtils import policyProbsBin
+from policyUtils import piBin, policyProbsBin
+from policy_iteration import policy_iteration, compute_vpi
 import pdb
 
 class VLenv(object):
@@ -84,7 +85,7 @@ class VLenv(object):
       self.F_V = np.vstack((self.F_V, self.fV))
       self.F_Pi = np.vstack((self.F_Pi, self.fPi))
 
-    return self.fPi, self.F_V, self.F_Pi, self.A, self.R, self.Mu, self.M, done
+    return self.fPi, self.F_V, self.F_Pi, self.A, self.R, self.Mu, self.M, done, reward
   
   @abstractmethod
   def reset(self):
@@ -266,6 +267,7 @@ class randomFiniteMDP(VLenv):
   def __init__(self, nS, maxT, gamma = 0.9, epsilon = 0.1, vFeatureArgs = {'featureChoice':'identity'}, piFeatureArgs = {'featureChoice':'identity'}):
     '''
     Initializes randomFiniteMDP object, including generating the transition distributions and rewards and storing in mdpDict attribute.
+    Currently using a fixed MDP, rather than randomly generating. 
     
     Currently only handles binary action spaces!
     
@@ -280,22 +282,28 @@ class randomFiniteMDP(VLenv):
                    If featureChoice == 'gRBF', then items 'gridpoints' and 'sigmaSq' must also be provided. 
     piFeatureArgs : '' 
     '''
-
-    VLenv.__init__(self, randomFiniteMDP.MAX_STATE, randomFiniteMDP.MIN_STATE, nS, gamma, epsilon, vFeatureArgs, piFeatureArgs)
-    self.nS = nS
+    self.nS = 4
     self.nA = 2
-    transitionMatrices = np.random.dirichlet(alpha=np.ones(nS), size=(self.nA, nS)) #nA x nS x nS array of nS x nS transition matrices, uniform on simplex
+    VLenv.__init__(self, randomFiniteMDP.MAX_STATE, randomFiniteMDP.MIN_STATE, self.nS, gamma, epsilon, vFeatureArgs, piFeatureArgs)
+    #transitionMatrices = np.random.dirichlet(alpha=np.ones(nS), size=(self.nA, nS)) #nA x nS x nS array of nS x nS transition matrices, uniform on simplex
+    transitionMatrices = np.array([[[0.1, 0.9, 0, 0], [0.1, 0, 0.9, 0], [0, 0.1, 0, 0.9], [0, 0, 0.1, 0.9]],
+                                   [[0.9, 0.1, 0, 0], [0.9, 0, 0.1, 0], [0, 0.9, 0, 0.1], [0, 0, 0.9, 0.1]]])
+    rewardMatrices = np.ones((self.nA, self.nS, self.nS)) * -0.1
+    rewardMatrices[[0,0],[2,3],[3,3]] = 1
     self.maxT = maxT
     self.transitionMatrices = transitionMatrices
     self.mdpDict= {}
     
     #Create transition dictionary of form {s_0 : {a_0: [( P(s_0 -> s_0), s_0, reward), ( P(s_0 -> s_1), s_1, reward), ...], a_1:...}, s_1:{...}, ...}
-    #Rewards are generated uniformly on [-10, 10]
-    for s in range(nS):
+    for s in range(self.nS):
         self.mdpDict[s] = {} 
         for a in range(self.nA):
-            self.mdpDict[s][a] = [(transitionMatrices[a, s, sp1], sp1, np.random.uniform(low=-10, high=10)) for sp1 in range(nS)]
-            
+            #self.mdpDict[s][a] = [(transitionMatrices[a, s, sp1], sp1, np.random.uniform(low=-10, high=10)) for sp1 in range(nS)]
+            self.mdpDict[s][a] = [(transitionMatrices[a, s, sp1], sp1, rewardMatrices[a, s, sp1]) for sp1 in range(self.nS)]
+    policy_iteration_results = policy_iteration(self)
+    self.optimalPolicy = policy_iteration_results[1][-1]
+    self.optimalPolicyValue = policy_iteration_results[0][-1]
+    
   def onehot(self, s):
     '''
     :parameter s: integer for state 
@@ -344,22 +352,30 @@ class randomFiniteMDP(VLenv):
 
     #Get next observation
     self.t += 1
-    nextStateDistribution = self.transitionMatrices[action, self.s, :]
+    nextStateDistribution = self.transitionMatrices[int(action), self.s, :]
     sNext = np.random.choice(self.nS, p=nextStateDistribution)
     reward = self.mdpDict[self.s][action][sNext][2]
     done = self.t == self.maxT
           
     data = self._update_data_binary(action, bHat, done, reward, self.onehot(sNext))    
     return data 
-
-#Test
-m = randomFiniteMDP(3, 10)
-m.reset()
-for i in range(9):
-  res = m.step(1, [1,1,1])
-print(res)
-
     
+  def evaluatePolicies(self, beta):
+    '''
+    Display optimal policy and policy associated with parameters beta.  
+    
+    :parameter beta: policy parameters 
+    '''
+    
+    #Compute pi_beta 
+    pi_beta = np.zeros(self.nS)
+    for s in range(self.nS): 
+      pi_beta[s] = piBin(self.onehot(s), beta) 
+    pi_beta = np.round(pi_beta)
+    v_beta = compute_vpi(pi_beta, self)      
+    print('pi opt: {} v opt: {}\n pi beta: {} v beta: {} beta: {}'.format(self.optimalPolicy, 
+          self.optimalPolicyValue, pi_beta, v_beta, beta))
+       
     
     
     
