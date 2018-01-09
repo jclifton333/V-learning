@@ -30,7 +30,7 @@ def thetaPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts):
                 under policy with parameter beta
   eps : epsilon used in epsilon-greedy
   M : array of matrices outer(psi_t, psi_t) - gamma*outer(psi_t, psi_tp1) (3d array of size T x nV x nV)
-  A : array of actions (1d or 2d array)
+  A : array of actions (1d or 2d array; if 2d actions must be rows)
   R : array of rewards (1d array)
   F_Pi : Policy features at each timestep (2d array of size T x nPi)
   F_V : V-function features at each timestep (2d array of size T x nV)

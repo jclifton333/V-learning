@@ -9,6 +9,30 @@ This file contains functions that return actions and probabilities associated wi
 
 import numpy as np
 
+def pi(s, beta): 
+  '''
+  Return array of action probabilities corresponding to rows of beta. 
+  :param s: state array at which to compute policy 
+  :param beta: nA x nS array of policy parameters, rows corresponding to each action 
+  :return: array of probabilities of each action 
+  '''
+  dots = np.array[np.dot(s, b) for b in beta] 
+  max_ = np.max(dots) 
+  exp_ = np.exp(dots - max_) 
+  return exp_ / np.sum(exp_) 
+  
+def policyProbs(a, s, beta, eps = 0.0): 
+  '''
+  :param a: onehot encoding of action 
+  :param s: state array 
+  :param beta: nA x nS array of policy parameters 
+  :param eps: epsilon used in epsilon-greedy 
+  :return: probability of action a in state s under policy with parameters beta. 
+  '''
+  p_list = pi(s, beta) 
+  p_a = np.dot(a, p_list) 
+  return p_a * (1 - eps) + (eps / len(a)) 
+ 
 def piBin(s, beta):
   '''
   For binary action space ; returns the probability of taking action 1 at state s given policy
