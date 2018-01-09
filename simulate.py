@@ -146,7 +146,7 @@ def simulate(bts, epsilon, initializer, label, envName, gamma, vArgs, piArgs, nE
           res = betaOpt(policyProbsBin, epsilon, M, A, R, F_Pi, F_V, Mu, bts = bts, wStart = betaHat, refDist = refDist, initializer = initializer)
           betaHat, tHat = res['betaHat'], res['thetaHat']
     t1 = time.time()
-    print('Episode {} Score: {} BTS: {} Time per optim call: {}'.format(ep, score, bts, (t1-t0)/(totalStepsCounter*int(score/(ep+1)))))
+    #print('Episode {} Score: {} BTS: {} Time per optim call: {}'.format(ep, score, bts, (t1-t0)/(totalStepsCounter*int(score/(ep+1)))))
     if envName == 'randomFiniteMDP': #Display policy and value information for finite MDP
       env.evaluatePolicies(betaHat)
     save_data.update(ep, score, betaHat, tHat)
