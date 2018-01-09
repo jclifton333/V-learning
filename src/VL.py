@@ -40,8 +40,12 @@ def thetaPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts):
   -------
   Estimate of theta 
   '''
+  binary = (len(A.shape) == 1) 
+  nA, nPi = A.shape[1], F_Pi.shape[1]
+  if not binary: 
+    beta = beta.reshape(nA, nPi)
   T, p = F_V.shape[0] - 1, F_V.shape[1]
-  if len(A.shape) == 1:
+  if binary == 1:
     w = np.array([btsWts[i] * float(policyProbs(A[i], F_Pi[i,:], beta, eps=eps)) / Mu[i] for i in range(T)])
   else:
     w = np.array([btsWts[i] * float(policyProbs(A[i,:], F_Pi[i,:], beta, eps=eps)) / Mu[i] for i in range(T)])
@@ -124,7 +128,50 @@ def betaOpt(policyProbs, eps, M, A, R, F_Pi, F_V, Mu, wStart=None, refDist=None,
     thetaOpt = thetaPi(betaOpt, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts)
     return {'betaHat':betaOpt, 'thetaHat':thetaOpt, 'objective':objective}
       
-      
+def betaOptMulti(policyProbs, eps, M, A, R, F_Pi, F_V, Mu, wStart=None, refDist=None, bts=True, initializer=None):
+  '''
+  Optimizes policy value over class of softmax policies indexed by beta. 
+  Currently only working for binary action spaces! 
+  
+  Parameters
+  ----------
+  policyProbs : function returning probability of observed action at given state,
+                under policy with parameter beta
+  eps : epsilon used in epsilon-greedy
+  M: array of matrices outer(psi_t, psi_t) - gamma*outer(psi_t, psi_tp1) (3d array of size T x nV x nV)
+  A: array of actions (1d or 2d array)
+  R: array of rewards (1d array)
+  F_Pi: Policy features at each timestep (2d array of size T x nPi)
+  F_V: V-function features at each timestep (2d array of size T x nV)
+  Mu: Probabilities of observed actions under policies mu_t (1d array of size T)
+  wStart : Warm start for beta optimization (1d array). 
+           If None, initializes to all 0s.  
+  refDist: Reference distribution for estimating value (2d array with v-function features as rows).
+           If None, use F_V as reference distribution.  
+  bts: boolean for using (exponential) bootstrap Thompson sampling
+  initializer: value in [None, 'basinhop', 'multistart'] for optimizer initialization method
+  
+  Returns
+  -------
+  Dictionary {'betaHat':estimate of beta, 'thetaHat':estimate of theta, 'objective':objective function (of policy parameters)}
+  '''
+  nPi = F_Pi.shape[1]
+  nV = F_V.shape[1]
+  nA = A.shape[1]
+  if F_V.shape[0] < nV: 
+    objective = lambda x: None 
+    return {'betaHat':np.zeros((nPi, nA)), 'thetaHat':np.zeros(nV), 'objective':objective}
+  else:    
+    if bts: 
+      btsWts = np.random.exponential(size = F_V.shape[0] - 1) 
+    else: 
+      btsWts = np.ones(F_V.shape[0] - 1)
+    objective = lambda beta: vPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, refDist=refDist)
+    if wStart is None:       
+      wStart = np.random.normal(scale=1000, size=(nPi, nA))
+    betaOpt = VLopt(objective, x0=wStart.ravel(), initializer=initializer)
+    thetaOpt = thetaPi(betaOpt, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts)
+    return {'betaHat':betaOpt, 'thetaHat':thetaOpt, 'objective':objective}
   
   
 

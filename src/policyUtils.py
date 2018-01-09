@@ -9,7 +9,7 @@ This file contains functions that return actions and probabilities associated wi
 
 import numpy as np
 
-def pi(s, beta): 
+def piMulti(s, beta): 
   '''
   Return array of action probabilities corresponding to rows of beta. 
   :param s: state array at which to compute policy 
@@ -21,7 +21,7 @@ def pi(s, beta):
   exp_ = np.exp(dots - max_) 
   return exp_ / np.sum(exp_) 
   
-def policyProbs(a, s, beta, eps = 0.0): 
+def policyProbsMulti(a, s, beta, eps = 0.0): 
   '''
   :param a: onehot encoding of action 
   :param s: state array 
@@ -73,22 +73,3 @@ def policyProbsBin(a, s, beta, eps = 0.0):
   p = piBin(s, beta)
   return a*p*(1-eps) + (1-a)*(1-p*(1-eps))
 
-def piMulti(s, beta):
-  '''
-  Returns probability distribution over actions at state s given policy parameters beta.
-  
-  Parameters
-  ----------
-  s: state (1d array)
-  beta: policy parameters (nA x nPi 2d array; rows correspond to actions)
-  
-  Returns
-  -------
-  Softmax policy (array) with parameters beta at state s.  
-  '''
-  dots = np.array([np.dot(s, beta[i,:]) for i in range(beta.shape[0])])
-  max_ = np.max(dots)
-  exp_list = np.array([np.exp(dot - max_) for dot in dots])
-  return exp_list / np.sum(exp_list)
-
-  

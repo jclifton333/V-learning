@@ -131,12 +131,10 @@ def simulate(bts, epsilon, initializer, label, envName, gamma, vArgs, piArgs, nE
     fPi = env.reset() 
     done = False 
     score = 0 
-    betaHatTS = None 
     t0 = time.time()
     while not done: 
       totalStepsCounter += 1
-      aProb = piBin(fPi, betaHat) 
-      a = np.random.random() < aProb * (1 - epsilon) 
+      a = env._get_action(fPi, betaHat)
       fPi, F_V, F_Pi, A, R, Mu, M, done, reward = env.step(a, betaHat)
       if not done:
         score += 1 
