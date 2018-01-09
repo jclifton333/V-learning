@@ -5,6 +5,7 @@ import numpy as np
 import pdb
 import argparse 
 import multiprocessing as mp
+import multiprocessing.pool as pl
 from VLenvironment import Cartpole, FlappyBirdEnv, randomFiniteMDP
 from VL import betaOpt
 from policyUtils import piBin, policyProbsBin
@@ -33,7 +34,7 @@ class data(object):
   For storing and saving data from simulations.  
   '''
 
-  def __init__(self, environment, method, label, optimalPolicy='Not specified'):
+  def __init__(self, environment, method, label, epsilon, bts, optimalPolicy='Not specified'):
     '''
     :param environment: a VLenv object (Cartpole, randomFiniteMDP, or FlappyBirdEnv)
     :param method: string describing hyperparameters, e.g. 'eps-0.05-gamma-0.9'
@@ -41,6 +42,8 @@ class data(object):
     :param optimalPolicy: array for optimal policy parameters, or 'Not specified'
     '''
     self.environment = environment
+    self.epsilon = epsilon 
+    self.bts = bts 
     self.method = method
     self.label = label
     self.episode = []
@@ -69,7 +72,8 @@ class data(object):
     Dump current data to pickle. 
     '''
     data_dict = {'label':self.label, 'method':self.method, 'episode':self.episode, 'score':self.score,
-                 'beta_hat':self.beta_hat, 'theta_hat':self.theta_hat, 'optimalPolicy':self.optimalPolicy}
+                 'beta_hat':self.beta_hat, 'theta_hat':self.theta_hat, 'optimalPolicy':self.optimalPolicy,
+                 'epsilon':self.epsilon, 'bts':self.bts}
     filename = 'results/{}/'.format(self.environment) + self.name 
     pkl.dump(data_dict, open(filename, 'wb')) 
     
@@ -114,18 +118,21 @@ def simulate(bts, epsilon, initializer, label, envName, gamma, vArgs, piArgs, nE
   #Data collection and writing settings 
   if write: 
     method = 'eps-{}-bts-{}-fix-{}-initializer-{}'.format(epsilon, bts, fixUpTo, initializer)
-    if envName == 'randomFiniteMDP':
-      optimalPolicy = env.optimalPolicy
-    else:
-      optimalPolicy = 'Not specified'
-    save_data = data(envName, method, label, optimalPolicy)
+  else: 
+    method = None
+  if envName == 'randomFiniteMDP':
+    optimalPolicy = env.optimalPolicy
+  else:
+    optimalPolicy = 'Not specified'
+  save_data = data(envName, method, label, epsilon, bts, optimalPolicy)
     
   #Run sim
-  betaHat = np.array([991.32845, 40.486286])  #This is the optimal beta for cartpole 
   for ep in range(nEp): 
     fPi = env.reset() 
     done = False 
     score = 0 
+    betaHatTS = None 
+    t0 = time.time()
     while not done: 
       totalStepsCounter += 1
       aProb = piBin(fPi, betaHat) 
@@ -137,22 +144,25 @@ def simulate(bts, epsilon, initializer, label, envName, gamma, vArgs, piArgs, nE
           refDist = F_V[:fixUpTo,:]
         else:
           refDist = F_V 
-        res = betaOpt(policyProbsBin, epsilon, M, A, R, F_Pi, F_V, Mu, bts = bts, refDist = refDist, initializer = initializer)
-        betaHat = res['betaHat']
-    print('Episode {} Score: {}'.format(ep, score))
+        if (ep < 30 and score % (ep + 1) == 0) or (ep >= 30 and score == 1): 
+          res = betaOpt(policyProbsBin, epsilon, M, A, R, F_Pi, F_V, Mu, bts = bts, wStart = betaHat, refDist = refDist, initializer = initializer)
+          betaHat, tHat = res['betaHat'], res['thetaHat']
+    t1 = time.time()
+    print('Episode {} Score: {} BTS: {} Time per optim call: {}'.format(ep, score, bts, (t1-t0)/(totalStepsCounter*int(score/(ep+1)))))
     if envName == 'randomFiniteMDP': #Display policy and value information for finite MDP
       env.evaluatePolicies(betaHat)
+    save_data.update(ep, score, betaHat, tHat)
     if write: 
-      save_data.update(ep, score, betaHat, tHat)
       save_data.write()
-
+  return 
+  
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument('--envName', type=str, help="String for environment name.", choices=VALID_ENVIRONMENT_NAMES)
   parser.add_argument('--gamma', type=float, help="Discount factor.")
   parser.add_argument('--epsilon', type=float, help="Exploration rate.")
   parser.add_argument('--bts', type=str2bool, help="Boolean for using (exponential) BTS.")
-  parser.add_argument('--initializer', type=strOrNone, choices=['None', 'basinhop', 'multistart'], help="String or None for optimization initialization method.")
+  parser.add_argument('--initializer', type=strOrNone, choices=[None, 'basinhop', 'multistart'], help="String or None for optimization initialization method.")
   parser.add_argument('--sigmaSqV', type=float, help="Gaussian kernel variance for v-function features.")
   parser.add_argument('--gridpointsV', type=int, help="Number of basis function points per dimension for v-function features.")
   parser.add_argument('--featureChoiceV', choices=['gRBF', 'identity', 'intercept'], help="Choice of v-function features.")
@@ -166,14 +176,15 @@ if __name__ == "__main__":
   parser.add_argument('--fixUpTo', type=intOrNone, help="Integer for number of observations to include in reference distribution, or None")
   args = parser.parse_args()
     
-  #np.random.seed(args.randomSeed)
+  np.random.seed(args.randomSeed)
   
   vArgs  = {'featureChoice':args.featureChoiceV, 'sigmaSq':args.sigmaSqV, 'gridpoints':args.gridpointsV}
   piArgs = {'featureChoice':args.featureChoicePi, 'sigmaSq':args.sigmaSqPi, 'gridpoints':args.gridpointsPi} 
-  
-  pool = mp.Pool(args.nRep)
 
+  pool = pl.ThreadPool(args.nRep)
   simulate_partial = partial(simulate, envName = args.envName, gamma = args.gamma, vArgs = vArgs, piArgs = piArgs, 
                              nEp = args.nEp, fixUpTo = args.fixUpTo, write = args.write) 
   argList = [(args.bts, args.epsilon, args.initializer, label) for label in range(args.nRep)]
   pool.starmap(simulate_partial, argList) 
+  pool.close()
+  pool.join()
