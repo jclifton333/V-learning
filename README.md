@@ -14,3 +14,12 @@ bash simulate.sh
 
 from root will create a local `results` directory, run simulations with settings specified in `simulate.sh`, 
 and save results if `WRITE` is set to `'True'`. 
+
+### ToDo 
+
+1. Finish implementing support for multi-action environments. 
+2. Refactor separate handling of binary and multi-action environments to one model for all action spaces. 
+3. Refactor directory structure - want a VLenvironment directory, with separate scripts for each environment;  
+   a VL directory for the V-learning algorithm; and a utils directory. 
+4. Address TODOs in simulate.py.  
+   
