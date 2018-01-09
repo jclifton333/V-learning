@@ -9,7 +9,7 @@ This file contains functions that return actions and probabilities associated wi
 
 import numpy as np
 
-def piMulti(s, beta): 
+def pi(s, beta): 
   '''
   Return array of action probabilities corresponding to rows of beta. 
   :param s: state array at which to compute policy 
@@ -18,21 +18,26 @@ def piMulti(s, beta):
   '''
   dots = np.array([np.dot(s, b) for b in beta])
   max_ = np.max(dots) 
-  exp_ = np.exp(dots - max_) 
-  print('dots: {}'.format(dots))
+  exp_ = np.exp(dots - max_)  #Subtract this in exponent to avoid overflow
   return exp_ / np.sum(exp_) 
   
-def policyProbsMulti(a, s, beta, eps = 0.0): 
+def policyProbs(a, s, beta, eps = 0.0): 
   '''
-  :param a: onehot encoding of action 
+  :param a: integer or onehot encoding of action 
   :param s: state array 
   :param beta: nA x nS array of policy parameters 
   :param eps: epsilon used in epsilon-greedy 
   :return: probability of action a in state s under policy with parameters beta. 
   '''
   p_list = pi(s, beta) 
-  p_a = np.dot(a, p_list) 
-  return p_a * (1 - eps) + (eps / len(a)) 
+  nA = beta.shape[0]
+  if isinstance(a, int):
+    a_vec = np.zeros(nA)
+    a_vec[a] = 1
+  else:
+    a_vec = a 
+  p_a = np.dot(a_vec, p_list) 
+  return p_a * (1 - eps) + (eps / nA) 
  
 def piBin(s, beta):
   '''

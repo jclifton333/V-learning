@@ -8,7 +8,7 @@ import multiprocessing as mp
 import multiprocessing.pool as pl
 from VLenvironment import Cartpole, FlappyBirdEnv, randomFiniteMDP
 from VL import betaOpt
-from policyUtils import piBin, policyProbsBin
+from policyUtils import pi, policyProbs
 from functools import partial 
 from utils import str2bool, intOrNone, strOrNone
 import time
@@ -111,12 +111,9 @@ def simulate(bts, epsilon, initializer, label, envName, gamma, vArgs, piArgs, nE
   '''
 
   #Initialize  
-  #TODO: subsume in env.reset 
+  #TODO: return betaHat in env.reset; make totalStepsCounter an env attribute 
   env = getEnvironment(envName, gamma, epsilon, vArgs, piArgs)
-  if env.NUM_ACTION == 2: 
-    betaHat = np.zeros(env.nPi)
-  else: 
-    betaHat = np.zeros((env.NUM_ACTION, env.nPi))
+  betaHat = np.zeros((env.NUM_ACTION, env.nPi))
   totalStepsCounter = 0
 
   #Data collection and writing settings 
@@ -139,8 +136,10 @@ def simulate(bts, epsilon, initializer, label, envName, gamma, vArgs, piArgs, nE
     t0 = time.time()
     while not done: 
       totalStepsCounter += 1
+      print('betahat shape: {} fPi shape: {}'.format(betaHat.shape, fPi.shape))
       a = env._get_action(fPi, betaHat)
       fPi, F_V, F_Pi, A, R, Mu, M, done, reward = env.step(a, betaHat)
+      print('A: {}'.format(A))
       if not done:
         score += 1 
         
@@ -152,7 +151,7 @@ def simulate(bts, epsilon, initializer, label, envName, gamma, vArgs, piArgs, nE
         
         #TODO: environment-specific schedule for calls to betaOpt  
         if (ep < 30 and score % (ep + 1) == 0) or (ep >= 30 and score == 1): 
-          res = betaOpt(policyProbsBin, epsilon, M, A, R, F_Pi, F_V, Mu, bts = bts, wStart = betaHat, refDist = refDist, initializer = initializer)
+          res = env.betaOpt(policyProbs, epsilon, M, A, R, F_Pi, F_V, Mu, bts = bts, wStart = betaHat, refDist = refDist, initializer = initializer)
           betaHat, tHat = res['betaHat'], res['thetaHat']
     
     t1 = time.time()

@@ -2,6 +2,7 @@
 Miscellaneous utilities.
 '''
 import argparse 
+import numpy as np
 
 def str2bool(v):
   '''
@@ -42,3 +43,12 @@ def strOrNone(v):
     return v
   else: 
     return arparse.ArgumentTypeError('String or None expected.') 
+    
+def onehot(integer, basis_size): 
+  '''
+  Onehot encoding of integer. 
+  '''
+  vec = np.zeros(basis_size)
+  vec[integer] = 1 
+  return vec 
+  

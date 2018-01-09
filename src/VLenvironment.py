@@ -14,9 +14,10 @@ import gym
 from ple.games.flappybird import FlappyBird
 from ple import PLE
 from featureUtils import getBasis, gRBF, identity, intercept
-from policyUtils import piBin, policyProbsBin, piMulti, policyProbsMulti
+from policyUtils import pi, policyProbs
+from utils import onehot 
 from policy_iteration import policy_iteration, compute_vpi
-import pdb
+from VL import betaOpt
 
 class VLenv(object):
   '''
@@ -24,23 +25,27 @@ class VLenv(object):
   flappy bird, and finite MDPs.  
   '''
   
-  def __init__(self, MAX_STATE, MIN_STATE, NUM_STATE, gamma, epsilon, vFeatureArgs, piFeatureArgs):
+  def __init__(self, MAX_STATE, MIN_STATE, NUM_STATE, NUM_ACTION, gamma, epsilon, vFeatureArgs, piFeatureArgs):
     self.MAX_STATE = MAX_STATE 
     self.MIN_STATE = MIN_STATE 
     self.NUM_STATE = NUM_STATE 
+    self.NUM_ACTION = NUM_ACTION 
     self.gamma = gamma 
     self.epsilon = epsilon
+    self.betaOpt = betaOpt
+    self.pi = pi 
+    self.policyProbs = policyProbs 
     
-    #Set feature functions and feature dimensions 
+    #Set feature functions, feature dimensions, and betaOpt 
     self.vFeatures, self.nV   = self._set_features(vFeatureArgs)
     self.piFeatures, self.nPi = self._set_features(piFeatureArgs)
     
     #Initialize data arrays
-    self.F_V  = np.zeros((0, self.nV))        #V-function features
-    self.F_Pi = np.zeros((0, self.nPi))       #Policy features
-    self.A    = np.zeros(0)                   #Actions
-    self.R    = np.zeros(0)                   #Rewards
-    self.Mu   = np.zeros(0)                   #Action probabilities
+    self.F_V  = np.zeros((0, self.nV))          #V-function features
+    self.F_Pi = np.zeros((0, self.nPi))         #Policy features
+    self.A    = np.zeros((0, self.NUM_ACTION))  #Actions
+    self.R    = np.zeros(0)                     #Rewards
+    self.Mu   = np.zeros(0)                     #Action probabilities
     self.M    = np.zeros((0, self.nV, self.nV)) #Outer products (for computing thetaHat)
     
   def _set_features(self, featureArgs):
@@ -65,11 +70,12 @@ class VLenv(object):
        featureFunc = intercept 
        nF = self.NUM_STATE + 1
     return featureFunc, nF
-  
+      
   def _update_data(self, action, bHat, done, reward, sNext):
     '''
     Updates data matrices.
     '''
+    
     #Update data    
     fVNext, fPiNext  = self.vFeatures(sNext), self.piFeatures(sNext)    
     mu = self.policyProbs(action, self.fPi, bHat, eps = self.epsilon)
@@ -77,12 +83,7 @@ class VLenv(object):
     
     self.fV  = fVNext
     self.fPi = fPiNext
-    if self.NUM_ACTION == 2: 
-      self.A = np.append(self.A, action)
-    else: 
-      action_vec = np.zeros(self.NUM_ACTION)
-      action_vec[action] = 1
-      self.A = np.hstack((self.A, action_vec)) 
+    self.A = np.vstack((self.A, onehot(action, self.NUM_ACTION))) 
     self.R = np.append(self.R, reward)
     self.Mu = np.append(self.Mu, mu)
     self.M = np.concatenate((self.M, [outerProd]), axis=0)
@@ -98,18 +99,13 @@ class VLenv(object):
     Returns random action at state with features fPi under policy with parameters betaHat.  
     
     :param fPi: policy state feature array 
-    :param betaHat: 1d (if binary action) or 2d (if multi action) array of policy parameters 
-    :return action: binary or onehot action 
+    :param betaHat: 2d array of policy parameters 
+    :return action: onehot action 
     '''
-    if self.NUM_ACTION == 2: 
-      aProb = self.pi(fPi, betaHat) 
-      action = np.random.random() < aProb * (1 - self.epsilon) 
-    else: 
-      aProbs = self.pi(fPi, betaHat)
-      print('aProbs: {}'.format(aProbs))      
-      epsProb = np.random.random() 
-      action = (epsProb > self.epsilon) * np.random.choice(self.NUM_ACTION, p=aProbs) + \
-               (epsProb <= self.epsilon) * np.random.choice(self.NUM_ACTION, p=np.ones(self.NUM_ACTION) / self.NUM_ACTION) 
+    aProbs = self.pi(fPi, betaHat)
+    epsProb = np.random.random() 
+    action = (epsProb > self.epsilon) * np.random.choice(self.NUM_ACTION, p=aProbs) + \
+             (epsProb <= self.epsilon) * np.random.choice(self.NUM_ACTION, p=np.ones(self.NUM_ACTION) / self.NUM_ACTION) 
     return action   
     
   @abstractmethod
@@ -157,7 +153,8 @@ class Cartpole(VLenv):
                    If featureChoice == 'gRBF', then items 'gridpoints' and 'sigmaSq' must also be provided. 
     piFeatureArgs : '' 
     '''
-    VLenv.__init__(self, Cartpole.MAX_STATE, Cartpole.MIN_STATE, Cartpole.NUM_STATE, gamma, epsilon, vFeatureArgs, piFeatureArgs)
+    VLenv.__init__(self, Cartpole.MAX_STATE, Cartpole.MIN_STATE, Cartpole.NUM_STATE, Cartpole.NUM_ACTION, 
+                   gamma, epsilon, vFeatureArgs, piFeatureArgs)
     self.env = gym.make('CartPole-v0')
     self.defaultReward = defaultReward    
     self.pi = piBin 
@@ -228,13 +225,11 @@ class FlappyBirdEnv(VLenv):
                    If featureChoice == 'gRBF', then items 'gridpoints' and 'sigmaSq' must also be provided. 
     piFeatureArgs : '' 
     '''
-    VLenv.__init__(self, FlappyBirdEnv.MAX_STATE, FlappyBirdEnv.MIN_STATE, FlappyBirdEnv.NUM_STATE, gamma, epsilon, vFeatureArgs, piFeatureArgs)
+    VLenv.__init__(self, FlappyBirdEnv.MAX_STATE, FlappyBirdEnv.MIN_STATE, FlappyBirdEnv.NUM_STATE, FlappyBirdEnv.NUM_ACTION,
+                   gamma, epsilon, vFeatureArgs, piFeatureArgs)
     self.gameStateReturner = FlappyBird() #Use this to return state dictionaries 
     self.env = PLE(self.gameStateReturner, fps = 30, display_screen = displayScreen) #Use this to input actions and return rewards
     self.NUM_ACTION = FlappyBirdEnv.NUM_ACTION
-    self.pi = piBin 
-    self.policyProbs = policyProbsBin     
-    self.env.init()
   
   @classmethod
   def stateFromDict(cls, sDict):
@@ -317,17 +312,8 @@ class randomFiniteMDP(VLenv):
     self.NUM_STATE = 4
     self.maxT = maxT
     self.NUM_ACTION = 3
-    VLenv.__init__(self, randomFiniteMDP.MAX_STATE, randomFiniteMDP.MIN_STATE, self.NUM_STATE, gamma, epsilon, vFeatureArgs, piFeatureArgs)
-    
-    if self.NUM_ACTION == 2: 
-      self.pi = piBin 
-      self.policyProbs = policyProbsBin
-    elif self.NUM_ACTION > 2: 
-      self.pi = piMulti
-      self.policyProbs = policyProbsMulti
-    else:
-      raise ValueError('Number of actions must be integer greater than 1.')
-    
+    VLenv.__init__(self, randomFiniteMDP.MAX_STATE, randomFiniteMDP.MIN_STATE, self.NUM_STATE, self.NUM_ACTION, gamma, epsilon, vFeatureArgs, piFeatureArgs)
+       
     transitionMatrices = np.random.dirichlet(alpha=np.ones(self.NUM_STATE), size=(self.NUM_ACTION, self.NUM_STATE)) #nA x NUM_STATE x NUM_STATE array of NUM_STATE x NUM_STATE transition matrices, uniform on simplex
     rewardMatrices = np.random.uniform(low=-10, high=10, size=(self.NUM_ACTION, self.NUM_STATE, self.NUM_STATE))
    
@@ -356,10 +342,12 @@ class randomFiniteMDP(VLenv):
     '''
     :parameter s: integer for state 
     :return s_dummy: onehot encoding of s
-    '''
-    s_dummy = np.zeros(self.NUM_STATE)
-    s_dummy[s] = 1
-    return s_dummy
+    '''    
+    
+    #s_dummy = np.zeros(self.NUM_STATE)
+    #s_dummy[s] = 1
+    #return s_dummy
+    return onehot(s, self.NUM_STATE)
 
   def reset(self):
     '''
