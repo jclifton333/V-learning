@@ -105,10 +105,10 @@ class VLenv(object):
       action = np.random.random() < aProb * (1 - self.epsilon) 
     else: 
       aProbs = self.pi(fPi, betaHat) 
-      p = np.random.random() 
-      action = (p > self.epsilon) * np.random.multinomial(1, aProbs) + \
-          (p <= self.epsilon) * np.random.multinomial(1, np.ones(self.NUM_ACTION) / self.NUM_ACTION) 
-     return action   
+      epsProb = np.random.random() 
+      action = (epsProb > self.epsilon) * np.random.choice(self.NUM_ACTION, p=aProbs) + \
+          (epsProb <= self.epsilon) * np.random.choice(self.NUM_ACTION, p=np.ones(self.NUM_ACTION) / self.NUM_ACTION) 
+    return action   
     
   @abstractmethod
   def reset(self):
@@ -325,7 +325,7 @@ class randomFiniteMDP(VLenv):
     else:
       raise ValueError('Number of actions must be integer greater than 1.')
     
-    #transitionMatrices = np.random.dirichlet(alpha=np.ones(nS), size=(self.nA, nS)) #nA x nS x nS array of nS x nS transition matrices, uniform on simplex
+    #transitionMatrices = np.random.dirichlet(alpha=np.ones(nS), size=(self.NUM_ACTION, nS)) #nA x nS x nS array of nS x nS transition matrices, uniform on simplex
     transitionMatrices = np.array([[[0.1, 0.9, 0, 0], [0.1, 0, 0.9, 0], [0, 0.1, 0, 0.9], [0, 0, 0.1, 0.9]],
                                    [[0.9, 0.1, 0, 0], [0.9, 0, 0.1, 0], [0, 0.9, 0, 0.1], [0, 0, 0.9, 0.1]]])
     rewardMatrices = np.ones((self.NUM_ACTION, self.nS, self.nS)) * -0.1
@@ -337,7 +337,7 @@ class randomFiniteMDP(VLenv):
     #Create transition dictionary of form {s_0 : {a_0: [( P(s_0 -> s_0), s_0, reward), ( P(s_0 -> s_1), s_1, reward), ...], a_1:...}, s_1:{...}, ...}
     for s in range(self.nS):
         self.mdpDict[s] = {} 
-        for a in range(self.nA):
+        for a in range(self.NUM_ACTION):
             #self.mdpDict[s][a] = [(transitionMatrices[a, s, sp1], sp1, np.random.uniform(low=-10, high=10)) for sp1 in range(nS)]
             self.mdpDict[s][a] = [(transitionMatrices[a, s, sp1], sp1, rewardMatrices[a, s, sp1]) for sp1 in range(self.nS)]
     policy_iteration_results = policy_iteration(self)

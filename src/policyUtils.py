@@ -16,7 +16,7 @@ def piMulti(s, beta):
   :param beta: nA x nS array of policy parameters, rows corresponding to each action 
   :return: array of probabilities of each action 
   '''
-  dots = np.array[np.dot(s, b) for b in beta] 
+  dots = np.array([np.dot(s, b) for b in beta])
   max_ = np.max(dots) 
   exp_ = np.exp(dots - max_) 
   return exp_ / np.sum(exp_) 
