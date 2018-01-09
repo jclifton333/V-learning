@@ -63,11 +63,13 @@ def VLopt(objective, x0, initializer=None):
   :param initializer: value in [None, 'basinhop', 'multistart'] for method to initialize L-BFGS-B optimizer.
   :return res.x: optimal parameter array returned by initializer + L-BFGS-B
   '''    
+  nA, nPi = x0.shape
+  x0 = x0.ravel() 
   if initializer == 'basinhop': 
     x0 = optim.basinhopping(objective, x0=x0, niter=100).x
     res = optim.minimize(objective, x0=x0, method='L-BFGS-B')
   elif initializer == 'multistart': 
-    random_starts = [x0] + [np.random.multivariate_normal(mean=np.zeros(len(x0)),cov=100*np.eye(len(x0))) for start in range(NUM_MULTISTART-1)]
+    random_starts = [x0] + [np.random.multivariate_normal(mean=np.zeros(nPi*nA),cov=100*np.eye(nPi*nA)) for start in range(NUM_MULTISTART-1)]
     #results = mp_multistart(random_starts, objective)
     results = [optim.minimize(objective, x0=random_start, method='L-BFGS-B') for random_start in random_starts]
     func_vals = [r.fun for r in results]
@@ -76,5 +78,7 @@ def VLopt(objective, x0, initializer=None):
     res = optim.minimize(objective, x0=x0, method='L-BFGS-B')  
   else: 
     raise ValueError('Invalid initializer value.')  
-  return res.x
+  betaOpt = res.x 
+  betaOpt = betaOpt.reshape(nA, nPi)
+  return betaOpt
     

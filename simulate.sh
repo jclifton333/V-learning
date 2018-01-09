@@ -3,16 +3,16 @@
 GAMMA=0.7                            #Discount factor
 SIGMA_SQ_V=1.0                       #Variance for v-function features, if gRBF is used 
 GRIDPOINTS_V=5                       #Number of points per dimension to use for v-function feature basis, if gRBF is used 
-FEATURE_CHOICE_V='gRBF'              #Choice of features for v-function ('identity', 'intercept', or 'gRBF')
+FEATURE_CHOICE_V='identity'              #Choice of features for v-function ('identity', 'intercept', or 'gRBF')
 SIGMA_SQ_PI=1.0                      #Variance for policy features, if gRBF is used
 GRIDPOINTS_PI=3                      #Number of points per dimension for policy feature basis, if gRBF is used 
 FEATURE_CHOICE_PI='identity'         #Choice of features for policy ('identity', 'intercept', or 'gRBF')
 NUM_EP=150                           #Number of episodes 
-NUM_REP=2                            #Number of replicates; simulate.py uses one core per rep! 
+NUM_REP=2                           #Number of replicates; simulate.py uses one core per rep! 
 SEED=3                               #Random seed 
 FIX_UP_TO=400                        #Number of observations to use in reference distribution
-WRITE='False'                         #Boolean for writing results to file 
-ENV_NAME='Cartpole'                  #Simulation environment name ('Cartpole', 'FlappyBirdEnv', or 'randomFiniteMDP'
+WRITE='False'                        #Boolean for writing results to file 
+ENV_NAME='randomFiniteMDP'           #Simulation environment name ('Cartpole', 'FlappyBirdEnv', or 'randomFiniteMDP'
 
 mkdir -p results
 mkdir -p results/$ENV_NAME

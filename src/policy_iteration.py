@@ -1,16 +1,16 @@
 import numpy as np
 
 def compute_vpi(pi, mdp):
-    a = np.array([sum([l[0]*l[2] for l in mdp.mdpDict[s][pi[s]]]) for s in range(mdp.nS)])
-    B = np.zeros((mdp.nS, mdp.nS))
-    for s in range(mdp.nS):
+    a = np.array([sum([l[0]*l[2] for l in mdp.mdpDict[s][pi[s]]]) for s in range(mdp.NUM_STATE)])
+    B = np.zeros((mdp.NUM_STATE, mdp.NUM_STATE))
+    for s in range(mdp.NUM_STATE):
         for l in mdp.mdpDict[s][pi[s]]:
             B[s,l[1]] += l[0]            
-    V= np.linalg.solve(np.identity(mdp.nS)-mdp.gamma*B,a)    
+    V= np.linalg.solve(np.identity(mdp.NUM_STATE)-mdp.gamma*B,a)    
     return V
 
 def compute_qpi(vpi, mdp):
-    Qpi = np.array([[sum([l[0]*(l[2] + mdp.gamma*vpi[l[1]]) for l in mdp.mdpDict[s][a]]) for a in range(mdp.nA)] for s in range(mdp.nS)])    
+    Qpi = np.array([[sum([l[0]*(l[2] + mdp.gamma*vpi[l[1]]) for l in mdp.mdpDict[s][a]]) for a in range(mdp.NUM_ACTION)] for s in range(mdp.NUM_STATE)])    
     return Qpi
 
 def policy_iteration(mdp, nIt=20):
@@ -22,7 +22,7 @@ def policy_iteration(mdp, nIt=20):
     '''
     Vs = []
     pis = []
-    pi_prev = np.zeros(mdp.nS,dtype='int')
+    pi_prev = np.zeros(mdp.NUM_STATE,dtype='int')
     pis.append(pi_prev)
     for it in range(nIt):   
         vpi = compute_vpi(pi_prev, mdp)

@@ -8,7 +8,7 @@ import multiprocessing as mp
 import multiprocessing.pool as pl
 from VLenvironment import Cartpole, FlappyBirdEnv, randomFiniteMDP
 from VL import betaOpt
-from policyUtils import piBin, policyProbsBin
+from policyUtils import pi, policyProbs
 from functools import partial 
 from utils import str2bool, intOrNone, strOrNone
 import time
@@ -111,11 +111,13 @@ def simulate(bts, epsilon, initializer, label, envName, gamma, vArgs, piArgs, nE
   '''
 
   #Initialize  
+  #TODO: return betaHat in env.reset; make totalStepsCounter an env attribute 
   env = getEnvironment(envName, gamma, epsilon, vArgs, piArgs)
-  betaHat = np.zeros(env.nPi)
+  betaHat = np.zeros((env.NUM_ACTION, env.nPi))
   totalStepsCounter = 0
 
   #Data collection and writing settings 
+  #TODO: subsume in data.__init__ 
   if write: 
     method = 'eps-{}-bts-{}-fix-{}-initializer-{}'.format(epsilon, bts, fixUpTo, initializer)
   else: 
@@ -131,29 +133,37 @@ def simulate(bts, epsilon, initializer, label, envName, gamma, vArgs, piArgs, nE
     fPi = env.reset() 
     done = False 
     score = 0 
-    betaHatTS = None 
     t0 = time.time()
     while not done: 
       totalStepsCounter += 1
-      aProb = piBin(fPi, betaHat) 
-      a = np.random.random() < aProb * (1 - epsilon) 
+      print('betahat shape: {} fPi shape: {}'.format(betaHat.shape, fPi.shape))
+      a = env._get_action(fPi, betaHat)
       fPi, F_V, F_Pi, A, R, Mu, M, done, reward = env.step(a, betaHat)
+      print('A: {}'.format(A))
       if not done:
         score += 1 
+        
+        #TODO: return refDist from env.step 
         if fixUpTo is not None: 
           refDist = F_V[:fixUpTo,:]
         else:
           refDist = F_V 
+        
+        #TODO: environment-specific schedule for calls to betaOpt  
         if (ep < 30 and score % (ep + 1) == 0) or (ep >= 30 and score == 1): 
-          res = betaOpt(policyProbsBin, epsilon, M, A, R, F_Pi, F_V, Mu, bts = bts, wStart = betaHat, refDist = refDist, initializer = initializer)
+          res = env.betaOpt(policyProbs, epsilon, M, A, R, F_Pi, F_V, Mu, bts = bts, wStart = betaHat, refDist = refDist, initializer = initializer)
           betaHat, tHat = res['betaHat'], res['thetaHat']
+    
     t1 = time.time()
-    print('Episode {} Score: {} BTS: {} Time per optim call: {}'.format(ep, score, bts, (t1-t0)/(totalStepsCounter*int(score/(ep+1)))))
+    #print('Episode {} Score: {} BTS: {} Time per optim call: {}'.format(ep, score, bts, (t1-t0)/(totalStepsCounter*int(score/(ep+1)))))
     if envName == 'randomFiniteMDP': #Display policy and value information for finite MDP
       env.evaluatePolicies(betaHat)
+    
+    #TODO: subsume write in data.update 
     save_data.update(ep, score, betaHat, tHat)
     if write: 
       save_data.write()
+      
   return 
   
 if __name__ == "__main__":
