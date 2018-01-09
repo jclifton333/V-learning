@@ -131,7 +131,7 @@ def betaOpt(policyProbs, eps, M, A, R, F_Pi, F_V, Mu, wStart=None, refDist=None,
 def betaOptMulti(policyProbs, eps, M, A, R, F_Pi, F_V, Mu, wStart=None, refDist=None, bts=True, initializer=None):
   '''
   Optimizes policy value over class of softmax policies indexed by beta. 
-  Currently only working for binary action spaces! 
+  For multi-action environments. 
   
   Parameters
   ----------
@@ -169,7 +169,7 @@ def betaOptMulti(policyProbs, eps, M, A, R, F_Pi, F_V, Mu, wStart=None, refDist=
     objective = lambda beta: vPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, refDist=refDist)
     if wStart is None:       
       wStart = np.random.normal(scale=1000, size=(nPi, nA))
-    betaOpt = VLopt(objective, x0=wStart.ravel(), initializer=initializer)
+    betaOpt = VLopt(objective, x0=wStart, initializer=initializer)
     thetaOpt = thetaPi(betaOpt, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts)
     return {'betaHat':betaOpt, 'thetaHat':thetaOpt, 'objective':objective}
   

@@ -6,6 +6,7 @@ Created on Sun Dec 10 11:52:51 2017
 
 Environment objects for V-learning.
 """
+
 from abc import abstractmethod 
 from functools import partial
 import numpy as np
@@ -104,10 +105,11 @@ class VLenv(object):
       aProb = self.pi(fPi, betaHat) 
       action = np.random.random() < aProb * (1 - self.epsilon) 
     else: 
-      aProbs = self.pi(fPi, betaHat) 
+      aProbs = self.pi(fPi, betaHat)
+      print('aProbs: {}'.format(aProbs))      
       epsProb = np.random.random() 
       action = (epsProb > self.epsilon) * np.random.choice(self.NUM_ACTION, p=aProbs) + \
-          (epsProb <= self.epsilon) * np.random.choice(self.NUM_ACTION, p=np.ones(self.NUM_ACTION) / self.NUM_ACTION) 
+               (epsProb <= self.epsilon) * np.random.choice(self.NUM_ACTION, p=np.ones(self.NUM_ACTION) / self.NUM_ACTION) 
     return action   
     
   @abstractmethod
@@ -211,7 +213,7 @@ class FlappyBirdEnv(VLenv):
   MIN_STATE = np.array([120, 50, 30, 0, -15])
   NUM_STATE = 5 
   NUM_ACTION = 2
-  ACTION_LIST = [None, 119] #Action codes accepted by the FlappyBird API 
+  ACTION_LIST = [None, 119] #Action codes accepted by the FlappyBird API, corresponding to [0, 1]
   
   def __init__(self, gamma = 0.9, epsilon = 0.1, displayScreen = False, vFeatureArgs = {'featureChoice':'gRBF', 'sigmaSq':1, 'gridpoints':5}, piFeatureArgs = {'featureChoice':'identity'}):
     '''
@@ -312,9 +314,10 @@ class randomFiniteMDP(VLenv):
                    If featureChoice == 'gRBF', then items 'gridpoints' and 'sigmaSq' must also be provided. 
     piFeatureArgs : '' 
     '''
-    self.nS = 4
+    self.NUM_STATE = 4
+    self.maxT = maxT
     self.NUM_ACTION = 3
-    VLenv.__init__(self, randomFiniteMDP.MAX_STATE, randomFiniteMDP.MIN_STATE, self.nS, gamma, epsilon, vFeatureArgs, piFeatureArgs)
+    VLenv.__init__(self, randomFiniteMDP.MAX_STATE, randomFiniteMDP.MIN_STATE, self.NUM_STATE, gamma, epsilon, vFeatureArgs, piFeatureArgs)
     
     if self.NUM_ACTION == 2: 
       self.pi = piBin 
@@ -325,21 +328,26 @@ class randomFiniteMDP(VLenv):
     else:
       raise ValueError('Number of actions must be integer greater than 1.')
     
-    #transitionMatrices = np.random.dirichlet(alpha=np.ones(nS), size=(self.NUM_ACTION, nS)) #nA x nS x nS array of nS x nS transition matrices, uniform on simplex
-    transitionMatrices = np.array([[[0.1, 0.9, 0, 0], [0.1, 0, 0.9, 0], [0, 0.1, 0, 0.9], [0, 0, 0.1, 0.9]],
-                                   [[0.9, 0.1, 0, 0], [0.9, 0, 0.1, 0], [0, 0.9, 0, 0.1], [0, 0, 0.9, 0.1]]])
-    rewardMatrices = np.ones((self.NUM_ACTION, self.nS, self.nS)) * -0.1
-    rewardMatrices[[0,0],[2,3],[3,3]] = 1
-    self.maxT = maxT
+    transitionMatrices = np.random.dirichlet(alpha=np.ones(self.NUM_STATE), size=(self.NUM_ACTION, self.NUM_STATE)) #nA x NUM_STATE x NUM_STATE array of NUM_STATE x NUM_STATE transition matrices, uniform on simplex
+    rewardMatrices = np.random.uniform(low=-10, high=10, size=(self.NUM_ACTION, self.NUM_STATE, self.NUM_STATE))
+   
+    #The commented lines use a pre-specified MDP, rather than a randomly-generated one 
+    #TODO: make finiteMDP class and subclasses for random MDPs and specified MDPs   
+    #self.NUM_STATE = 4
+    #self.NUM_ACTION = 2
+    #transitionMatrices = np.array([[[0.1, 0.9, 0, 0], [0.1, 0, 0.9, 0], [0, 0.1, 0, 0.9], [0, 0, 0.1, 0.9]],
+    #                               [[0.9, 0.1, 0, 0], [0.9, 0, 0.1, 0], [0, 0.9, 0, 0.1], [0, 0, 0.9, 0.1]]])
+    #rewardMatrices = np.ones((self.NUM_ACTION, self.NUM_STATE, self.NUM_STATE)) * -0.1
+    #rewardMatrices[[0,0],[2,3],[3,3]] = 1
+
     self.transitionMatrices = transitionMatrices
     self.mdpDict= {}
     
     #Create transition dictionary of form {s_0 : {a_0: [( P(s_0 -> s_0), s_0, reward), ( P(s_0 -> s_1), s_1, reward), ...], a_1:...}, s_1:{...}, ...}
-    for s in range(self.nS):
+    for s in range(self.NUM_STATE):
         self.mdpDict[s] = {} 
         for a in range(self.NUM_ACTION):
-            #self.mdpDict[s][a] = [(transitionMatrices[a, s, sp1], sp1, np.random.uniform(low=-10, high=10)) for sp1 in range(nS)]
-            self.mdpDict[s][a] = [(transitionMatrices[a, s, sp1], sp1, rewardMatrices[a, s, sp1]) for sp1 in range(self.nS)]
+            self.mdpDict[s][a] = [(transitionMatrices[a, s, sp1], sp1, rewardMatrices[a, s, sp1]) for sp1 in range(self.NUM_STATE)]
     policy_iteration_results = policy_iteration(self)
     self.optimalPolicy = policy_iteration_results[1][-1]
     self.optimalPolicyValue = policy_iteration_results[0][-1]
@@ -349,7 +357,7 @@ class randomFiniteMDP(VLenv):
     :parameter s: integer for state 
     :return s_dummy: onehot encoding of s
     '''
-    s_dummy = np.zeros(self.nS)
+    s_dummy = np.zeros(self.NUM_STATE)
     s_dummy[s] = 1
     return s_dummy
 
@@ -357,7 +365,7 @@ class randomFiniteMDP(VLenv):
     '''
     Starts a new simulation at a random state, adds initial state features to data.
     '''
-    s = np.random.choice(self.nS)
+    s = np.random.choice(self.NUM_STATE)
     s_dummy = self.onehot(s)
     self.s = s
     self.t = 0 
@@ -393,7 +401,7 @@ class randomFiniteMDP(VLenv):
     #Get next observation
     self.t += 1
     nextStateDistribution = self.transitionMatrices[int(action), self.s, :]
-    sNext = np.random.choice(self.nS, p=nextStateDistribution)
+    sNext = np.random.choice(self.NUM_STATE, p=nextStateDistribution)
     reward = self.mdpDict[self.s][action][sNext][2]
     done = self.t == self.maxT          
     data = self._update_data(action, bHat, done, reward, self.onehot(sNext))    
@@ -407,8 +415,8 @@ class randomFiniteMDP(VLenv):
     '''
     
     #Compute pi_beta 
-    pi_beta = np.zeros(self.nS)
-    for s in range(self.nS): 
+    pi_beta = np.zeros(self.NUM_STATE)
+    for s in range(self.NUM_STATE): 
       pi_beta[s] = self.pi(self.onehot(s), beta) 
     pi_beta = np.round(pi_beta)
     v_beta = compute_vpi(pi_beta, self)      

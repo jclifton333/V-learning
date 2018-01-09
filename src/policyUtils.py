@@ -19,6 +19,7 @@ def piMulti(s, beta):
   dots = np.array([np.dot(s, b) for b in beta])
   max_ = np.max(dots) 
   exp_ = np.exp(dots - max_) 
+  print('dots: {}'.format(dots))
   return exp_ / np.sum(exp_) 
   
 def policyProbsMulti(a, s, beta, eps = 0.0): 
