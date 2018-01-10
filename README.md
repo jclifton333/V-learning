@@ -21,11 +21,17 @@ Code for the simulation environments is in ```src/environments```.  The ```VL_en
 RL API appropriate for V-learning, from which each environment inherits.
 
 *```VL_env``` 
+
   -```Cartpole```
+  
   -```Flappy``` 
+  
   -```FiniteMDP```: for MDPs with finite state spaces
+  
     *```SimpleMDP```: easy MDP with 4 states and 2 actions, for testing 
+    
     *```RandomFiniteMDP```: generate random finite MDP, for testing 
+    
     *```Gridworld```: difficult gridworld task, for paper simulations 
 
 ### ToDo 
