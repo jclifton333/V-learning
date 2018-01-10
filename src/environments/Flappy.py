@@ -12,7 +12,7 @@ class Flappy(VL_env):
   NUM_ACTION = 2
   ACTION_LIST = [None, 119] #Action codes accepted by the FlappyBird API, corresponding to [0, 1]
   
-  def __init__(self, gamma = 0.9, epsilon = 0.1, displayScreen = False, vFeatureArgs = {'featureChoice':'gRBF', 'sigmaSq':1, 'gridpoints':5}, piFeatureArgs = {'featureChoice':'identity'}):
+  def __init__(self, gamma = 0.9, epsilon = 0.1, displayScreen = False, fixUpTo = None, vFeatureArgs = {'featureChoice':'gRBF', 'sigmaSq':1, 'gridpoints':5}, piFeatureArgs = {'featureChoice':'identity'}):
     '''
     Constructs the cartpole environment, and sets feature functions.  
 
@@ -26,7 +26,7 @@ class Flappy(VL_env):
     piFeatureArgs : '' 
     '''
     VL_env.__init__(self, Flappy.MAX_STATE, Flappy.MIN_STATE, Flappy.NUM_STATE, Flappy.NUM_ACTION,
-                   gamma, epsilon, vFeatureArgs, piFeatureArgs)
+                   gamma, epsilon, fixUpTo, vFeatureArgs, piFeatureArgs)
     self.gameStateReturner = FlappyBird() #Use this to return state dictionaries 
     self.env = PLE(self.gameStateReturner, fps = 30, display_screen = displayScreen) #Use this to input actions and return rewards
     self.NUM_ACTION = Flappy.NUM_ACTION
@@ -46,6 +46,7 @@ class Flappy(VL_env):
     '''
     Starts a new simulation, adds initial state to data.
     '''
+    self.episodeSteps = 0
     self.env.reset_game() 
     sDict = self.gameStateReturner.getGameState() 
     s = self.stateFromDict(sDict)
@@ -75,9 +76,13 @@ class Flappy(VL_env):
       R: array of rewards 
       Mu: array of action probabilities
       M:  3d array of outer products 
+      refDist: 2d array of v-function features to use as V-learning reference distribution
       done: boolean for end of episode
+      reward: 1d array of scalar rewards
     '''    
     
+    self.totalSteps += 1
+    self.episodeSteps += 1
     #Get next observation 
     reward = self.env.act(Flappy.ACTION_LIST[action])
     sDict  = self.gameStateReturner.getGameState() 

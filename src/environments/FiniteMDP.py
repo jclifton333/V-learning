@@ -1,7 +1,10 @@
+import sys 
+sys.path.append('../utils')
+
 from VL_env import VL_env
-import numpy as np
 from policy_iteration import compute_vpi, policy_iteration
 from utils import onehot
+import numpy as np
 
 class FiniteMDP(VL_env):
   '''
@@ -11,7 +14,7 @@ class FiniteMDP(VL_env):
   MAX_STATE = 1 
   MIN_STATE = 0 
   
-  def __init_(self, maxT, gamma, epsilon, transitionMatrices, rewardMatrices)
+  def __init_(self, maxT, gamma, epsilon, transitionMatrices, rewardMatrices, terminalStates = [], fixUpTo = None)
     '''
     Initialize MDP object, including self.mdpDict to store transition and reward information. 
     
@@ -20,12 +23,14 @@ class FiniteMDP(VL_env):
     :param epsilon: for epsilon-greedy exploration 
     :param transitionMatrices: NUM_ACTION x NUM_STATE x NUM_STATE array of state transition matrices 
     :param rewardMatrices: NUM_ACTION x NUM_STATE x NUM_STATE array of rewards corresponding to transitions 
+    :param terminalStates: list of states that will end episode if reached 
     '''
     
     self.maxT = maxT
+    self.terminalStates = terminalStates
     NUM_ACTION, NUM_STATE = transitionMatrices.shape[0], transitionMatrices.shape[1]
     VL_env.__init__(self, FiniteMDP.MAX_STATE, FiniteMDP.MIN_STATE, NUM_STATE, NUM_ACTION, gamma, epsilon,  
-                    vFeatureArgs = {'featureChoice':'identity'}, piFeatureArgs = {'featureChoice':'identity'})
+                    fixUpTo, vFeatureArgs = {'featureChoice':'identity'}, piFeatureArgs = {'featureChoice':'identity'})
     
     #Create transition dictionary of form {s_0 : {a_0: [( P(s_0 -> s_0), s_0, reward), ( P(s_0 -> s_1), s_1, reward), ...], a_1:...}, s_1:{...}, ...}
     self.mdpDict= {}
@@ -55,7 +60,7 @@ class FiniteMDP(VL_env):
     s = np.random.choice(self.NUM_STATE)
     s_dummy = self.onehot(s)
     self.s = s
-    self.t = 0 
+    self.episodeSteps = 0 
     self.fV = self.vFeatures(s_dummy)
     self.fPi = self.piFeatures(s_dummy) 
     self.F_V = np.vstack((self.F_V, self.fV))
@@ -75,22 +80,24 @@ class FiniteMDP(VL_env):
     Return
     ------
     data tuple, with elements
-      fV: features of next state
+      fPi: features of next state
       F_V: array of v-function features
       F_Pi: array of policy features
       A: array of actions
       R: array of rewards 
       Mu: array of action probabilities
       M:  3d array of outer products 
+      refDist: 2d array of v-function features to use as V-learning reference distribution
       done: boolean for end of episode
+      reward: 1d array of scalar rewards
     '''    
-
+    self.totalSteps += 1
+    self.episodeSteps += 1
     #Get next observation
-    self.t += 1
     nextStateDistribution = self.transitionMatrices[int(action), self.s, :]
     sNext = np.random.choice(self.NUM_STATE, p=nextStateDistribution)
     reward = self.mdpDict[self.s][action][sNext][2]
-    done = self.t == self.maxT          
+    done = ((self.episodeSteps == self.maxT) or (sNext in self.terminalStates))     
     data = self._update_data(action, bHat, done, reward, self.onehot(sNext))    
     return data 
     
@@ -117,6 +124,7 @@ class SimpleMDP(FiniteMDP):
   '''
   NUM_STATE = 4
   NUM_ACTION = 2 
+  TERMINAL = [] 
   
   def __init__(self, maxT, gamma = 0.9, epsilon = 0.1):
     '''
@@ -135,7 +143,7 @@ class SimpleMDP(FiniteMDP):
     rewardMatrices[[0,0],[2,3],[3,3]] = 1
     
     #Initialize as FiniteMDP subclass
-    FiniteMDP.__init__(self, maxT, gamma, epsilon, transitionMatrices, rewardMatrices)
+    FiniteMDP.__init__(self, maxT, gamma, epsilon, transitionMatrices, rewardMatrices, SimpleMDP.TERMINAL)
 
 class RandomFiniteMDP(FiniteMDP):
   '''
@@ -143,8 +151,9 @@ class RandomFiniteMDP(FiniteMDP):
   Transition distributions are generated from Dirichlet(1, ... , 1), and rewards at each 
   transition are generated Unif(-10, 10). 
   '''
+  TERMINAL = [] 
 
-  def __init__(self, nA = 3, nS = 4, maxT, gamma = 0.9, epsilon = 0.1):
+  def __init__(self, maxT, nA = 3, nS = 4, gamma = 0.9, epsilon = 0.1):
     '''
     Initializes randomFiniteMDP object by passing randomly generated transition distributions and rewards to FiniteMDP.
     
@@ -161,7 +170,7 @@ class RandomFiniteMDP(FiniteMDP):
     rewardMatrices = np.random.uniform(low=-10, high=10, size=(nA, nS, nS))
 
     #Initialize as FiniteMDP subclass 
-    FiniteMDP.__init__(self, maxT, gamma, epsilon, transitionMatrices, rewardMatrices)
+    FiniteMDP.__init__(self, maxT, gamma, epsilon, transitionMatrices, rewardMatrices, RandomFiniteMDP.TERMINAL)
     
 class Gridworld(FiniteMDP): 
   '''
@@ -176,7 +185,6 @@ class Gridworld(FiniteMDP):
  
   State numbering  
   ---------------
-
   0  1  2  3 
   4  5  6  7 
   8  9  10 11
@@ -195,7 +203,7 @@ class Gridworld(FiniteMDP):
   NUM_STATE = 16
   NUM_ACTION = 4  
   PATH = [0, 1, 2, 3, 7, 11] #States for which transitions are deterministic
-  TERMINAL = [15] #Absorbing states
+  TERMINAL = [15] 
   
   #These functions help construct the reward and transition matrices.
   @staticmethod 
@@ -254,6 +262,6 @@ class Gridworld(FiniteMDP):
             rewardMatrices[a, s, s_next] = self.reward(s_next)
     
     #Initialize as FiniteMDP subclass
-    FiniteMDP.__init__(self, maxT, gamma, epsilon, transitionMatrices, rewardMatrices)
+    FiniteMDP.__init__(self, maxT, gamma, epsilon, transitionMatrices, rewardMatrices, Gridworld.TERMINAL)
 
     

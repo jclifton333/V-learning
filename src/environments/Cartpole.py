@@ -8,7 +8,7 @@ class Cartpole(VL_env):
   NUM_STATE = 2
   NUM_ACTION = 2
     
-  def __init__(self, gamma = 0.9, epsilon = 0.1, defaultReward = True, vFeatureArgs = {'featureChoice':'gRBF', 'sigmaSq':1, 'gridpoints':5}, piFeatureArgs = {'featureChoice':'identity'}):
+  def __init__(self, gamma = 0.9, epsilon = 0.1, defaultReward = True, fixUpTo = None, vFeatureArgs = {'featureChoice':'gRBF', 'sigmaSq':1, 'gridpoints':5}, piFeatureArgs = {'featureChoice':'identity'}):
     '''
     Constructs the cartpole environment, and sets feature functions.  
     
@@ -22,7 +22,7 @@ class Cartpole(VL_env):
     piFeatureArgs : '' 
     '''
     VL_env.__init__(self, Cartpole.MAX_STATE, Cartpole.MIN_STATE, Cartpole.NUM_STATE, Cartpole.NUM_ACTION, 
-                   gamma, epsilon, vFeatureArgs, piFeatureArgs)
+                   gamma, epsilon, fixUpTo, vFeatureArgs, piFeatureArgs)
     self.env = gym.make('CartPole-v0')
     self.defaultReward = defaultReward    
     self.NUM_ACTION = Cartpole.NUM_ACTION
@@ -31,6 +31,7 @@ class Cartpole(VL_env):
     '''
     Starts a new simulation, adds initial state to data.
     '''
+    self.episodeSteps = 0 
     s = self.env.reset()
     s = s[2:]
     self.fV = self.vFeatures(s)
@@ -59,8 +60,12 @@ class Cartpole(VL_env):
       R: array of rewards 
       Mu: array of action probabilities
       M:  3d array of outer products 
+      refDist: 2d array of v-function features to use as V-learning reference distribution
       done: boolean for end of episode
+      reward: 1d array of scalar rewards
     '''    
+    self.totalSteps += 1
+    self.episodeSteps += 1
     sNext, reward, done, _ = self.env.step(action)
     sNext = sNext[2:]
     if not self.defaultReward:

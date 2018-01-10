@@ -1,29 +1,34 @@
 import sys 
 sys.path.append('src')
+sys.path.append('src/environments')
+sys.path.append('src/utils')
+sys.path.append('src/estimation')
 
+from Cartpole import Cartpole 
+from Flappy import Flappy 
+from VL import betaOpt
+from policy_utils import pi, policyProbs
+from functools import partial 
+from utils import str2bool, intOrNone, strOrNone
 import numpy as np
-import pdb
 import argparse 
 import multiprocessing as mp
 import multiprocessing.pool as pl
-from VLenvironment import Cartpole, FlappyBirdEnv, randomFiniteMDP
-from VL import betaOpt
-from policyUtils import pi, policyProbs
-from functools import partial 
-from utils import str2bool, intOrNone, strOrNone
+import RandomFiniteMDP
 import time
 import pickle as pkl
 
 '''
 Global simulation variables. 
 '''
-VALID_ENVIRONMENT_NAMES = ['FlappyBird', 'randomFiniteMDP', 'Cartpole'] 
+VALID_ENVIRONMENT_NAMES = ['Flappy', 'SimpleMDP', 'Gridworld', 'RandomFiniteMDP', 'Cartpole'] 
 
 #Cartpole
 DEFAULT_REWARD = False
 
-#randomFiniteMDP
-NUM_FINITE_STATE = 3 #Number of states if randomFiniteMDP is chosen
+#FiniteMDPs 
+NUM_RANDOM_FINITE_STATE = 3 #Number of states if randomFiniteMDP is chosen
+NUM_RANDOM_FINITE_ACTION = 3
 MAX_T_FINITE = 50 #Max number of timesteps per episode if randomFiniteMDP is chosen
 
 #Flappy Bird
@@ -33,29 +38,35 @@ class data(object):
   '''
   For storing and saving data from simulations.  
   '''
-
-  def __init__(self, environment, method, label, epsilon, bts, optimalPolicy='Not specified'):
+  def __init__(self, environment, fixUpTo, initializer, label, epsilon, bts, write = False):
     '''
-    :param environment: a VLenv object (Cartpole, randomFiniteMDP, or FlappyBirdEnv)
-    :param method: string describing hyperparameters, e.g. 'eps-0.05-gamma-0.9'
+    :param environment: a VLenv object 
+    :param fixUpTo: integer or None for number of obs to include in reference distribution 
+    :param initializer: string in ['multistart', 'basinhop'], or None 
     :param label: arbitrary label for writing to file 
-    :param optimalPolicy: array for optimal policy parameters, or 'Not specified'
+    :param write: boolean for writing data to pickle at each update 
     '''
     self.environment = environment
     self.epsilon = epsilon 
     self.bts = bts 
-    self.method = method
+    self.initializer = initializer 
+    self.description = 'eps-{}-bts-{}-fix-{}-initializer-{}'.format(epsilon, bts, fixUpTo, initializer)
     self.label = label
     self.episode = []
     self.score = []
     self.beta_hat = []
     self.theta_hat = []
-    self.optimalPolicy = optimalPolicy
-    self.name = '{}-{}-{}.p'.format(self.environment, self.method, self.label)
+    self.name = '{}-{}-{}.p'.format(self.environment, self.description, self.label)
+
+    if isinstance(environment, FiniteMDP): 
+      self.optimalPolicy = environment.optimalPolicy 
+    else: 
+      self.optimalPolicy = 'Not a FiniteMDP environment' 
+      
     
   def update(self, episode, score, beta_hat, theta_hat):
     '''
-    Update data.
+    Update data, and write to pickle if self.write == True. 
     
     :param episode: integer for episode
     :param score: integer for score
@@ -67,30 +78,38 @@ class data(object):
     self.beta_hat.append(beta_hat)
     self.theta_hat.append(theta_hat)
     
+    if self.write: 
+      self.write() 
+    
   def write(self):
     '''
     Dump current data to pickle. 
     '''
     data_dict = {'label':self.label, 'method':self.method, 'episode':self.episode, 'score':self.score,
                  'beta_hat':self.beta_hat, 'theta_hat':self.theta_hat, 'optimalPolicy':self.optimalPolicy,
-                 'epsilon':self.epsilon, 'bts':self.bts}
+                 'epsilon':self.epsilon, 'bts':self.bts, 'initializer':self.initializer}
     filename = 'results/{}/'.format(self.environment) + self.name 
     pkl.dump(data_dict, open(filename, 'wb')) 
     
-def getEnvironment(envName, gamma, epsilon, vFeatureArgs, piFeatureArgs):
+def getEnvironment(envName, gamma, epsilon, fixUpTo):
   '''
   Returns a VLenv object corresponding to the given parameters and globals.
   '''
   if envName == 'Cartpole':
-    return Cartpole(gamma, epsilon, DEFAULT_REWARD, vFeatureArgs, piFeatureArgs)
-  elif envName == 'randomFiniteMDP':
-    return randomFiniteMDP(NUM_FINITE_STATE, MAX_T_FINITE, gamma, epsilon, vFeatureArgs, piFeatureArgs)
-  elif envName == 'FlappyBird':
-    return FlappyBirdEnv(gamma, epsilon, vFeatureArgs, piFeatureArgs, displayScreen = DISPLAY_SCREEN)
+    return Cartpole(gamma, epsilon, DEFAULT_REWARD, fixUpTo = fixUpTo)
+  elif envName == 'Flappy':
+    return Flappy(gamma, epsilon, displayScreen = DISPLAY_SCREEN, fixUpTo = fixUpTo)
+  elif envName == 'RandomFiniteMDP':
+    return FiniteMDP.RandomFiniteMDP(MAX_T_FINITE,  nA = NUM_RANDOM_FINITE_ACTION, 
+                                     nS = NUM_RANDOM_FINITE_STATE, gamma = gamma, epsilon = epsilon, fixUpTo = fixUpTo)
+  elif envName == 'SimpleMDP':
+    return FiniteMDP.SimpleMDP(MAX_T_FINITE, gamma, epsilon, fixUpTo = fixUpTo) 
+  elif envName == 'Gridworld':
+    return FiniteMDP.Gridworld(MAX_T_FINITE, gamma, epsilon, fixUpTo = fixUpTo) 
   else: 
     raise ValueError('Incorrect environment name.  Choose name in {}.'.format(VALID_ENVIRONMENT_NAMES))
     
-def simulate(bts, epsilon, initializer, label, envName, gamma, vArgs, piArgs, nEp, fixUpTo, write = False):
+def simulate(bts, epsilon, initializer, label, envName, gamma, nEp, fixUpTo, write = False):
   '''
   Runs simulation with V-learning for an environment with a binary action space.
   
@@ -102,8 +121,6 @@ def simulate(bts, epsilon, initializer, label, envName, gamma, vArgs, piArgs, nE
   label : label for filename, if write is True
   envName : string in VALID_ENVIRONMENT_NAMES specifying environment to simulate
   gamma : discount factor
-  vArgs : dictionary {'featureChoice', 'sigmaSq', 'gridpoints'} for v-function arguments 
-  piArgs : '' for policy arguments   
   nEp: number of episodes 
   fixUpTo : if integer is given use first _fixUpTo_ observations as reference distribution; 
             otherwise, always use entire observation history   
@@ -112,22 +129,10 @@ def simulate(bts, epsilon, initializer, label, envName, gamma, vArgs, piArgs, nE
 
   #Initialize  
   #TODO: return betaHat in env.reset; make totalStepsCounter an env attribute 
-  env = getEnvironment(envName, gamma, epsilon, vArgs, piArgs)
+  env = getEnvironment(envName, gamma, epsilon, fixUpTo)
   betaHat = np.zeros((env.NUM_ACTION, env.nPi))
-  totalStepsCounter = 0
-
-  #Data collection and writing settings 
-  #TODO: subsume in data.__init__ 
-  if write: 
-    method = 'eps-{}-bts-{}-fix-{}-initializer-{}'.format(epsilon, bts, fixUpTo, initializer)
-  else: 
-    method = None
-  if envName == 'randomFiniteMDP':
-    optimalPolicy = env.optimalPolicy
-  else:
-    optimalPolicy = 'Not specified'
-  save_data = data(envName, method, label, epsilon, bts, optimalPolicy)
-    
+  save_data = data(env, fixUpTo, initializer, label, epsilon, bts, write = write)
+      
   #Run sim
   for ep in range(nEp): 
     fPi = env.reset() 
@@ -135,35 +140,24 @@ def simulate(bts, epsilon, initializer, label, envName, gamma, vArgs, piArgs, nE
     score = 0 
     t0 = time.time()
     while not done: 
-      totalStepsCounter += 1
       print('betahat shape: {} fPi shape: {}'.format(betaHat.shape, fPi.shape))
       a = env._get_action(fPi, betaHat)
-      fPi, F_V, F_Pi, A, R, Mu, M, done, reward = env.step(a, betaHat)
+      fPi, F_V, F_Pi, A, R, Mu, M, refDist, done, reward = env.step(a, betaHat)
       print('A: {}'.format(A))
       if not done:
         score += 1 
-        
-        #TODO: return refDist from env.step 
-        if fixUpTo is not None: 
-          refDist = F_V[:fixUpTo,:]
-        else:
-          refDist = F_V 
-        
+ 
         #TODO: environment-specific schedule for calls to betaOpt  
         if (ep < 30 and score % (ep + 1) == 0) or (ep >= 30 and score == 1): 
           res = env.betaOpt(policyProbs, epsilon, M, A, R, F_Pi, F_V, Mu, bts = bts, wStart = betaHat, refDist = refDist, initializer = initializer)
           betaHat, tHat = res['betaHat'], res['thetaHat']
     
     t1 = time.time()
-    #print('Episode {} Score: {} BTS: {} Time per optim call: {}'.format(ep, score, bts, (t1-t0)/(totalStepsCounter*int(score/(ep+1)))))
-    if envName == 'randomFiniteMDP': #Display policy and value information for finite MDP
+    #print('Episode {} Score: {} BTS: {} Time per optim call: {}'.format(ep, score, bts, (t1-t0)/(env.totalStepsCounter*int(score/(ep+1)))))
+    if isinstance(env, FiniteMDP): #Display policy and value information for finite MDP
       env.evaluatePolicies(betaHat)
-    
-    #TODO: subsume write in data.update 
-    save_data.update(ep, score, betaHat, tHat)
-    if write: 
-      save_data.write()
       
+    save_data.update(ep, score, betaHat, tHat)      
   return 
   
 if __name__ == "__main__":
@@ -173,12 +167,6 @@ if __name__ == "__main__":
   parser.add_argument('--epsilon', type=float, help="Exploration rate.")
   parser.add_argument('--bts', type=str2bool, help="Boolean for using (exponential) BTS.")
   parser.add_argument('--initializer', type=strOrNone, choices=[None, 'basinhop', 'multistart'], help="String or None for optimization initialization method.")
-  parser.add_argument('--sigmaSqV', type=float, help="Gaussian kernel variance for v-function features.")
-  parser.add_argument('--gridpointsV', type=int, help="Number of basis function points per dimension for v-function features.")
-  parser.add_argument('--featureChoiceV', choices=['gRBF', 'identity', 'intercept'], help="Choice of v-function features.")
-  parser.add_argument('--sigmaSqPi', type=float, help="Gaussian kernel variance for policy features.")
-  parser.add_argument('--gridpointsPi', type=int, help="Number of basis function points per dimension for policy features.")
-  parser.add_argument('--featureChoicePi', choices=['gRBF', 'identity', 'intercept'], help="Choice of policy features.")
   parser.add_argument('--randomSeed', type=int) 
   parser.add_argument('--nEp', type=int, help="Number of episodes per replicate.")
   parser.add_argument('--nRep', type=int, help="Number of replicates.")
@@ -188,12 +176,8 @@ if __name__ == "__main__":
     
   np.random.seed(args.randomSeed)
   
-  vArgs  = {'featureChoice':args.featureChoiceV, 'sigmaSq':args.sigmaSqV, 'gridpoints':args.gridpointsV}
-  piArgs = {'featureChoice':args.featureChoicePi, 'sigmaSq':args.sigmaSqPi, 'gridpoints':args.gridpointsPi} 
-
   pool = pl.ThreadPool(args.nRep)
-  simulate_partial = partial(simulate, envName = args.envName, gamma = args.gamma, vArgs = vArgs, piArgs = piArgs, 
-                             nEp = args.nEp, fixUpTo = args.fixUpTo, write = args.write) 
+  simulate_partial = partial(simulate, envName = args.envName, gamma = args.gamma, nEp = args.nEp, fixUpTo = args.fixUpTo, write = args.write) 
   argList = [(args.bts, args.epsilon, args.initializer, label) for label in range(args.nRep)]
   pool.starmap(simulate_partial, argList) 
   pool.close()
