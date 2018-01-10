@@ -20,19 +20,19 @@ and save results if `WRITE` is set to `'True'`.
 Code for the simulation environments is in ```src/environments```.  The ```VL_env``` class provides a generic 
 RL API appropriate for V-learning, from which each environment inherits.
 
-*```VL_env``` 
+* ```VL_env``` 
 
-  -```Cartpole```
+  - ```Cartpole```
   
-  -```Flappy``` 
+  - ```Flappy``` 
   
-  -```FiniteMDP```: for MDPs with finite state spaces
+  - ```FiniteMDP```: for MDPs with finite state spaces
   
-    *```SimpleMDP```: easy MDP with 4 states and 2 actions, for testing 
+    * ```SimpleMDP```: easy MDP with 4 states and 2 actions, for testing 
     
-    *```RandomFiniteMDP```: generate random finite MDP, for testing 
+    * ```RandomFiniteMDP```: generate random finite MDP, for testing 
     
-    *```Gridworld```: difficult gridworld task, for paper simulations 
+    * ```Gridworld```: difficult gridworld task, for paper simulations 
 
 ### ToDo 
 
