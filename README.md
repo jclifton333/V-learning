@@ -15,10 +15,22 @@ bash simulate.sh
 from root will create a local `results` directory, run simulations with settings specified in `simulate.sh`, 
 and save results if `WRITE` is set to `'True'`. 
 
+### Simulation environments 
+
+Code for the simulation environments is in ```src/environments```.  The ```VL_env``` class provides a generic 
+RL API appropriate for V-learning, from which each environment inherits.
+
+*```VL_env``` 
+  -```Cartpole```
+  -```Flappy``` 
+  -```FiniteMDP```: for MDPs with finite state spaces
+    *```SimpleMDP```: easy MDP with 4 states and 2 actions, for testing 
+    *```RandomFiniteMDP```: generate random finite MDP, for testing 
+    *```Gridworld```: difficult gridworld task, for paper simulations 
+
 ### ToDo 
 
-1. Finish implementing support for multi-action environments. 
-2. Refactor separate handling of binary and multi-action environments to one model for all action spaces. 
-3. Refactor directory structure - want a VLenvironment directory, with separate scripts for each environment;  
+1. Test new VL_env class structure.
+2. Refactor directory structure - want a VLenvironment directory, with separate scripts for each environment;  
    a VL directory for the V-learning algorithm; and a utils directory. 
-4. Address TODOs in simulate.py and randomFiniteMDP class in VLenvironment.py.
+3. Address TODOs in simulate.py and randomFiniteMDP class in VLenvironment.py.

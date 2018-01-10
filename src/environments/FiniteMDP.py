@@ -110,58 +110,6 @@ class FiniteMDP(VL_env):
     print('pi opt: {} v opt: {}\n pi beta: {} v beta: {} beta: {}'.format(self.optimalPolicy, 
           self.optimalPolicyValue, pi_beta, v_beta, beta))
 
-class RandomFiniteMDP(FiniteMDP):
-  '''
-  Creates a FiniteMDP object from a random set of transitions and rewards. 
-  Transition distributions are generated from Dirichlet(1, ... , 1), and rewards at each 
-  transition are generated Unif(-10, 10). 
-  '''
-
-  def __init__(self, nA = 3, nS = 4, maxT, gamma = 0.9, epsilon = 0.1):
-    '''
-    Initializes randomFiniteMDP object by passing randomly generated transition distributions and rewards to FiniteMDP.
-    
-    Parameters
-    ----------
-    nA: number of actions in MDP
-    nS: number of states in MDP     
-    maxT: max number of steps in episode
-    gamma : discount factor
-    epsilon : for epsilon - greedy 
-    '''
-    #Generate transition distributions 
-    transitionMatrices = np.random.dirichlet(alpha=np.ones(nS), size=(nA, nS)) #nA x NUM_STATE x NUM_STATE array of NUM_STATE x NUM_STATE transition matrices, uniform on simplex
-    rewardMatrices = np.random.uniform(low=-10, high=10, size=(nA, nS, nS))
-
-    #Initialize as FiniteMDP subclass 
-    FiniteMDP.__init__(self, maxT, gamma, epsilon, transitionMatrices, rewardMatrices)
-
-class Gridworld(FiniteMDP): 
-  '''
-  A difficult gridworld task with 16 squares. 
-  '''
-  NUM_STATE = 16
-  NUM_ACTION = 4  
-  
-  def __init__(self, maxT, gamma = 0.9, epsilon = 0.1):
-    '''
-   
-    Parameters
-    ----------
-    maxT: max number of steps in episode
-    gamma : discount factor
-    epsilon : for epsilon - greedy 
-    '''
-    
-    #Define transition and reward arrays
-    transitionMatrices = np.array([[[0.1, 0.9, 0, 0], [0.1, 0, 0.9, 0], [0, 0.1, 0, 0.9], [0, 0, 0.1, 0.9]],
-                                   [[0.9, 0.1, 0, 0], [0.9, 0, 0.1, 0], [0, 0.9, 0, 0.1], [0, 0, 0.9, 0.1]]])
-    rewardMatrices = np.ones((SimpleMDP.NUM_ACTION, SimpleMDP.NUM_STATE, SimpleMDP.NUM_STATE)) * -0.1
-    rewardMatrices[[0,0],[2,3],[3,3]] = 1
-    
-    #Initialize as FiniteMDP subclass
-    FiniteMDP.__init__(self, maxT, gamma, epsilon, transitionMatrices, rewardMatrices)
-
     
 class SimpleMDP(FiniteMDP):
   '''
@@ -188,4 +136,124 @@ class SimpleMDP(FiniteMDP):
     
     #Initialize as FiniteMDP subclass
     FiniteMDP.__init__(self, maxT, gamma, epsilon, transitionMatrices, rewardMatrices)
+
+class RandomFiniteMDP(FiniteMDP):
+  '''
+  Creates a FiniteMDP object from a random set of transitions and rewards. 
+  Transition distributions are generated from Dirichlet(1, ... , 1), and rewards at each 
+  transition are generated Unif(-10, 10). 
+  '''
+
+  def __init__(self, nA = 3, nS = 4, maxT, gamma = 0.9, epsilon = 0.1):
+    '''
+    Initializes randomFiniteMDP object by passing randomly generated transition distributions and rewards to FiniteMDP.
+    
+    Parameters
+    ----------
+    nA: number of actions in MDP
+    nS: number of states in MDP     
+    maxT: max number of steps in episode
+    gamma : discount factor
+    epsilon : for epsilon - greedy 
+    '''
+    #Generate transition distributions 
+    transitionMatrices = np.random.dirichlet(alpha=np.ones(nS), size=(nA, nS)) #nA x NUM_STATE x NUM_STATE array of NUM_STATE x NUM_STATE transition matrices, uniform on simplex
+    rewardMatrices = np.random.uniform(low=-10, high=10, size=(nA, nS, nS))
+
+    #Initialize as FiniteMDP subclass 
+    FiniteMDP.__init__(self, maxT, gamma, epsilon, transitionMatrices, rewardMatrices)
+    
+class Gridworld(FiniteMDP): 
+  '''
+  A difficult gridworld task with 16 squares. 
+  
+  Actions
+  ------
+  0 = N
+  1 = E
+  2 = S 
+  3 = W
+ 
+  State numbering  
+  ---------------
+
+  0  1  2  3 
+  4  5  6  7 
+  8  9  10 11
+  12 13 14 15
+  
+  Transitions
+  -----------
+  15 is terminal.
+  Transitions are deterministic in states [0, 1, 2, 3, 7, 11], 
+  uniformly randomly everywhere else (for every action). 
+
+  Rewards
+  -------
+  Reward is -1 for each transition except transitions to 15, which are positive.   
+  '''
+  NUM_STATE = 16
+  NUM_ACTION = 4  
+  PATH = [0, 1, 2, 3, 7, 11] #States for which transitions are deterministic
+  TERMINAL = [15] #Absorbing states
+  
+  #These functions help construct the reward and transition matrices.
+  @staticmethod 
+  def adjacent(s):
+    '''
+    Returns states adjacent to s in order [N, E, S, W]
+    If s on boundary, s is adjacent to itself in that direction
+      e.g. adjacent(0) = [0, 1, 4, 0]
+    This results in double-counting boundary states when transition is uniformly random
+    '''
+    return [s - 4*(s > 3), s + 1*((s+1) % 4 != 0),  s + 4*(s < 12), s - 1*(s % 4 != 0)]
+  
+  @staticmethod 
+  def transition(s, a):
+    #Returns the normal deterministic transition from state s given a 
+    return adjacent(s)[a]
+  
+  @staticmethod 
+  def reward(s):
+    #Returns reward for transitioning to state s
+    if s < 15: 
+      return -1
+    else: 
+      return 1
+      
+  def __init__(self, maxT, gamma = 0.9, epsilon = 0.1):
+    '''   
+    Parameters
+    ----------
+    maxT: max number of steps in episode
+    gamma : discount factor
+    epsilon : for epsilon - greedy 
+    '''
+    
+    #Construct transition and reward arrays
+    transitionMatrices = np.zeros((Gridworld.NUM_ACTION, Gridworld.NUM_STATE, Gridworld.NUM_STATE))
+    rewardMatrices = np.zeros((Gridworld.NUM_ACTION, Gridworld.NUM_STATE, Gridworld.NUM_STATE))
+    
+    for s in range(Gridworld.NUM_STATE):
+      if s in Gridworld.PATH:    
+        for a in range(Gridworld.NUM_ACTION):
+          s_next = self.transition(s, a) 
+          transitionMatrices[a, s, s_next] = 1 
+          rewardMatrices[a, s, s_next] = self.reward(s_next)
+      elif s in Gridworld.TERMINAL:
+        for a in range(Gridworld.NUM_ACTION): 
+          s_next = s 
+          transitionMatrices[a, s, s_next] = 1 
+          rewardMatrices[a, s, s_next] = self.reward(s_next) 
+      else: 
+        for a in range(Gridworld.NUM_ACTION): 
+          adjacent_states = self.adjacent(s) 
+          uniform_transition_prob = 1 / len(adjacent_states)
+          for s_next in adjacent_states: 
+            transitionMatrices[a, s, s_next] = uniform_transition_prob 
+            rewardMatrices[a, s, s_next] = self.reward(s_next)
+    
+    #Initialize as FiniteMDP subclass
+    FiniteMDP.__init__(self, maxT, gamma, epsilon, transitionMatrices, rewardMatrices)
+
     
