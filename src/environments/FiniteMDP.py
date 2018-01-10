@@ -14,7 +14,7 @@ class FiniteMDP(VL_env):
   MAX_STATE = 1 
   MIN_STATE = 0 
   
-  def __init_(self, maxT, gamma, epsilon, transitionMatrices, rewardMatrices, terminalStates = [], fixUpTo = None)
+  def __init__(self, maxT, gamma, epsilon, transitionMatrices, rewardMatrices, terminalStates = [], fixUpTo = None):
     '''
     Initialize MDP object, including self.mdpDict to store transition and reward information. 
     
@@ -39,6 +39,8 @@ class FiniteMDP(VL_env):
         for a in range(self.NUM_ACTION):
             self.mdpDict[s][a] = [(transitionMatrices[a, s, sp1], sp1, rewardMatrices[a, s, sp1]) for sp1 in range(self.NUM_STATE)]
     policy_iteration_results = policy_iteration(self)
+    self.transitionMatrices = transitionMatrices
+    self.rewardMatrices = rewardMatrices
     self.optimalPolicy = policy_iteration_results[1][-1]
     self.optimalPolicyValue = policy_iteration_results[0][-1]
     
@@ -61,6 +63,7 @@ class FiniteMDP(VL_env):
     s_dummy = self.onehot(s)
     self.s = s
     self.episodeSteps = 0 
+    self.totalSteps = 0
     self.fV = self.vFeatures(s_dummy)
     self.fPi = self.piFeatures(s_dummy) 
     self.F_V = np.vstack((self.F_V, self.fV))
@@ -153,7 +156,7 @@ class RandomFiniteMDP(FiniteMDP):
   '''
   TERMINAL = [] 
 
-  def __init__(self, maxT, nA = 3, nS = 4, gamma = 0.9, epsilon = 0.1):
+  def __init__(self, maxT, nA = 3, nS = 4, gamma = 0.9, epsilon = 0.1, fixUpTo = None):
     '''
     Initializes randomFiniteMDP object by passing randomly generated transition distributions and rewards to FiniteMDP.
     
@@ -170,7 +173,7 @@ class RandomFiniteMDP(FiniteMDP):
     rewardMatrices = np.random.uniform(low=-10, high=10, size=(nA, nS, nS))
 
     #Initialize as FiniteMDP subclass 
-    FiniteMDP.__init__(self, maxT, gamma, epsilon, transitionMatrices, rewardMatrices, RandomFiniteMDP.TERMINAL)
+    FiniteMDP.__init__(self, maxT, gamma, epsilon, transitionMatrices, rewardMatrices, RandomFiniteMDP.TERMINAL, fixUpTo=fixUpTo)
     
 class Gridworld(FiniteMDP): 
   '''
@@ -206,7 +209,7 @@ class Gridworld(FiniteMDP):
   TERMINAL = [15] 
   
   #These functions help construct the reward and transition matrices.
-  @staticmethod 
+  @staticmethod
   def adjacent(s):
     '''
     Returns states adjacent to s in order [N, E, S, W]
@@ -216,10 +219,10 @@ class Gridworld(FiniteMDP):
     '''
     return [s - 4*(s > 3), s + 1*((s+1) % 4 != 0),  s + 4*(s < 12), s - 1*(s % 4 != 0)]
   
-  @staticmethod 
-  def transition(s, a):
+  @classmethod 
+  def transition(cls, s, a):
     #Returns the normal deterministic transition from state s given a 
-    return adjacent(s)[a]
+    return cls.adjacent(s)[a]
   
   @staticmethod 
   def reward(s):
@@ -229,7 +232,7 @@ class Gridworld(FiniteMDP):
     else: 
       return 1
       
-  def __init__(self, maxT, gamma = 0.9, epsilon = 0.1):
+  def __init__(self, maxT, gamma = 0.9, epsilon = 0.1, fixUpTo = None):
     '''   
     Parameters
     ----------

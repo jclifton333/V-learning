@@ -6,6 +6,7 @@ sys.path.append('src/estimation')
 
 from Cartpole import Cartpole 
 from Flappy import Flappy 
+from FiniteMDP import RandomFiniteMDP, SimpleMDP, Gridworld
 from VL import betaOpt
 from policy_utils import pi, policyProbs
 from functools import partial 
@@ -14,7 +15,7 @@ import numpy as np
 import argparse 
 import multiprocessing as mp
 import multiprocessing.pool as pl
-import RandomFiniteMDP
+import FiniteMDP
 import time
 import pickle as pkl
 
@@ -29,7 +30,7 @@ DEFAULT_REWARD = False
 #FiniteMDPs 
 NUM_RANDOM_FINITE_STATE = 3 #Number of states if randomFiniteMDP is chosen
 NUM_RANDOM_FINITE_ACTION = 3
-MAX_T_FINITE = 50 #Max number of timesteps per episode if randomFiniteMDP is chosen
+MAX_T_FINITE = 2 #Max number of timesteps per episode if randomFiniteMDP is chosen
 
 #Flappy Bird
 DISPLAY_SCREEN = False
@@ -40,7 +41,7 @@ class data(object):
   '''
   def __init__(self, environment, fixUpTo, initializer, label, epsilon, bts, write = False):
     '''
-    :param environment: a VLenv object 
+    :param environment: a string naming a VLenv object 
     :param fixUpTo: integer or None for number of obs to include in reference distribution 
     :param initializer: string in ['multistart', 'basinhop'], or None 
     :param label: arbitrary label for writing to file 
@@ -56,13 +57,8 @@ class data(object):
     self.score = []
     self.beta_hat = []
     self.theta_hat = []
-    self.name = '{}-{}-{}.p'.format(self.environment, self.description, self.label)
-
-    if isinstance(environment, FiniteMDP): 
-      self.optimalPolicy = environment.optimalPolicy 
-    else: 
-      self.optimalPolicy = 'Not a FiniteMDP environment' 
-      
+    self.name = '{}-{}-{}.p'.format(self.environment, self.description, self.label)      
+    self.write = write
     
   def update(self, episode, score, beta_hat, theta_hat):
     '''
@@ -85,8 +81,8 @@ class data(object):
     '''
     Dump current data to pickle. 
     '''
-    data_dict = {'label':self.label, 'method':self.method, 'episode':self.episode, 'score':self.score,
-                 'beta_hat':self.beta_hat, 'theta_hat':self.theta_hat, 'optimalPolicy':self.optimalPolicy,
+    data_dict = {'label':self.label, 'description':self.description, 'episode':self.episode, 'score':self.score,
+                 'beta_hat':self.beta_hat, 'theta_hat':self.theta_hat,
                  'epsilon':self.epsilon, 'bts':self.bts, 'initializer':self.initializer}
     filename = 'results/{}/'.format(self.environment) + self.name 
     pkl.dump(data_dict, open(filename, 'wb')) 
@@ -100,12 +96,12 @@ def getEnvironment(envName, gamma, epsilon, fixUpTo):
   elif envName == 'Flappy':
     return Flappy(gamma, epsilon, displayScreen = DISPLAY_SCREEN, fixUpTo = fixUpTo)
   elif envName == 'RandomFiniteMDP':
-    return FiniteMDP.RandomFiniteMDP(MAX_T_FINITE,  nA = NUM_RANDOM_FINITE_ACTION, 
+    return RandomFiniteMDP(MAX_T_FINITE,  nA = NUM_RANDOM_FINITE_ACTION, 
                                      nS = NUM_RANDOM_FINITE_STATE, gamma = gamma, epsilon = epsilon, fixUpTo = fixUpTo)
   elif envName == 'SimpleMDP':
-    return FiniteMDP.SimpleMDP(MAX_T_FINITE, gamma, epsilon, fixUpTo = fixUpTo) 
+    return SimpleMDP(MAX_T_FINITE, gamma, epsilon, fixUpTo = fixUpTo) 
   elif envName == 'Gridworld':
-    return FiniteMDP.Gridworld(MAX_T_FINITE, gamma, epsilon, fixUpTo = fixUpTo) 
+    return Gridworld(MAX_T_FINITE, gamma, epsilon, fixUpTo = fixUpTo) 
   else: 
     raise ValueError('Incorrect environment name.  Choose name in {}.'.format(VALID_ENVIRONMENT_NAMES))
     
@@ -131,7 +127,7 @@ def simulate(bts, epsilon, initializer, label, envName, gamma, nEp, fixUpTo, wri
   #TODO: return betaHat in env.reset; make totalStepsCounter an env attribute 
   env = getEnvironment(envName, gamma, epsilon, fixUpTo)
   betaHat = np.zeros((env.NUM_ACTION, env.nPi))
-  save_data = data(env, fixUpTo, initializer, label, epsilon, bts, write = write)
+  save_data = data(envName, fixUpTo, initializer, label, epsilon, bts, write = write)
       
   #Run sim
   for ep in range(nEp): 
@@ -140,10 +136,8 @@ def simulate(bts, epsilon, initializer, label, envName, gamma, nEp, fixUpTo, wri
     score = 0 
     t0 = time.time()
     while not done: 
-      print('betahat shape: {} fPi shape: {}'.format(betaHat.shape, fPi.shape))
       a = env._get_action(fPi, betaHat)
       fPi, F_V, F_Pi, A, R, Mu, M, refDist, done, reward = env.step(a, betaHat)
-      print('A: {}'.format(A))
       if not done:
         score += 1 
  
@@ -153,9 +147,9 @@ def simulate(bts, epsilon, initializer, label, envName, gamma, nEp, fixUpTo, wri
           betaHat, tHat = res['betaHat'], res['thetaHat']
     
     t1 = time.time()
-    #print('Episode {} Score: {} BTS: {} Time per optim call: {}'.format(ep, score, bts, (t1-t0)/(env.totalStepsCounter*int(score/(ep+1)))))
-    if isinstance(env, FiniteMDP): #Display policy and value information for finite MDP
-      env.evaluatePolicies(betaHat)
+    print('Episode {} Score: {} BTS: {} Time per optim call: {}'.format(ep, score, bts, (t1-t0)/(env.totalSteps*int(score/(ep+1)))))
+    #if envName in ['RandomFiniteMDP', 'Gridworld', 'SimpleMDP']: #Display policy and value information for finite MDP
+    #  env.evaluatePolicies(betaHat)
       
     save_data.update(ep, score, betaHat, tHat)      
   return 
