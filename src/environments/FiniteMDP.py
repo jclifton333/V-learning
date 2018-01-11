@@ -59,7 +59,7 @@ class FiniteMDP(VL_env):
     '''
     Starts a new simulation at a random state, adds initial state features to data.
     '''
-    s = np.random.choice(self.NUM_STATE)
+    s = 0
     s_dummy = self.onehot(s)
     self.s = s
     self.episodeSteps = 0 
@@ -99,6 +99,7 @@ class FiniteMDP(VL_env):
     #Get next observation
     nextStateDistribution = self.transitionMatrices[int(action), self.s, :]
     sNext = np.random.choice(self.NUM_STATE, p=nextStateDistribution)
+    self.s = sNext
     reward = self.mdpDict[self.s][action][sNext][2]
     done = ((self.episodeSteps == self.maxT) or (sNext in self.terminalStates))     
     data = self._update_data(action, bHat, done, reward, self.onehot(sNext))    
@@ -261,7 +262,7 @@ class Gridworld(FiniteMDP):
           adjacent_states = self.adjacent(s) 
           uniform_transition_prob = 1 / len(adjacent_states)
           for s_next in adjacent_states: 
-            transitionMatrices[a, s, s_next] = uniform_transition_prob 
+            transitionMatrices[a, s, s_next] += uniform_transition_prob 
             rewardMatrices[a, s, s_next] = self.reward(s_next)
     
     #Initialize as FiniteMDP subclass

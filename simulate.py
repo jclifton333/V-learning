@@ -30,7 +30,7 @@ DEFAULT_REWARD = False
 #FiniteMDPs 
 NUM_RANDOM_FINITE_STATE = 3 #Number of states if randomFiniteMDP is chosen
 NUM_RANDOM_FINITE_ACTION = 3
-MAX_T_FINITE = 2 #Max number of timesteps per episode if randomFiniteMDP is chosen
+MAX_T_FINITE = 50 #Max number of timesteps per episode if randomFiniteMDP is chosen
 
 #Flappy Bird
 DISPLAY_SCREEN = False
@@ -139,15 +139,11 @@ def simulate(bts, epsilon, initializer, label, envName, gamma, nEp, fixUpTo, wri
       a = env._get_action(fPi, betaHat)
       fPi, F_V, F_Pi, A, R, Mu, M, refDist, done, reward = env.step(a, betaHat)
       if not done:
-        score += 1 
- 
-        #TODO: environment-specific schedule for calls to betaOpt  
-        if (ep < 30 and score % (ep + 1) == 0) or (ep >= 30 and score == 1): 
-          res = env.betaOpt(policyProbs, epsilon, M, A, R, F_Pi, F_V, Mu, bts = bts, wStart = betaHat, refDist = refDist, initializer = initializer)
+        if env.s in env.PATH: 
+          res = env.betaOpt(policyProbs, epsilon, M, A, R, F_Pi, F_V, Mu, bts = bts, wStart = betaHat[1:,:], refDist = refDist, initializer = initializer)
           betaHat, tHat = res['betaHat'], res['thetaHat']
-    
     t1 = time.time()
-    print('Episode {} Score: {} BTS: {} Time per optim call: {}'.format(ep, score, bts, (t1-t0)/(env.totalSteps*int(score/(ep+1)))))
+    print('Episode {} Score: {} BTS: {}'.format(ep, env.episodeSteps, bts))
     #if envName in ['RandomFiniteMDP', 'Gridworld', 'SimpleMDP']: #Display policy and value information for finite MDP
     #  env.evaluatePolicies(betaHat)
       

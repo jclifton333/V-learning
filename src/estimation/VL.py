@@ -40,19 +40,15 @@ def thetaPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts):
   -------
   Estimate of theta 
   '''
-  binary = (len(A.shape) == 1) 
   nA, nPi = A.shape[1], F_Pi.shape[1]
-  if not binary: 
-    beta = beta.reshape(nA, nPi)
+  beta = beta.reshape(nA, nPi)
   T, p = F_V.shape[0] - 1, F_V.shape[1]
-  if binary == 1:
-    w = np.array([btsWts[i] * float(policyProbs(A[i], F_Pi[i,:], beta, eps=eps)) / Mu[i] for i in range(T)])
-  else:
-    w = np.array([btsWts[i] * float(policyProbs(A[i,:], F_Pi[i,:], beta, eps=eps)) / Mu[i] for i in range(T)])
+  w = np.array([btsWts[i] * float(policyProbs(A[i,:], F_Pi[i,:], beta, eps=eps)) / Mu[i] for i in range(T)])
   sumRS = np.sum(np.multiply(F_V[:-1,:], np.multiply(w, R).reshape(T,1)), axis=0)
   sumM  = np.sum(np.multiply(M, w.reshape(T, 1, 1)), axis=0)
+  thetaTilde = np.random.normal(size = sumRS.shape)
   LU = la.lu_factor(sumM + 0.01*np.eye(p)) 
-  return la.lu_solve(LU, sumRS)
+  return la.lu_solve(LU, thetaTilde + sumRS)
   
 def vPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, refDist=None):
   '''
@@ -60,7 +56,7 @@ def vPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, refDist=None):
   
   Parameters
   ----------
-  beta : policy parameters (1d array)
+  beta : policy parameters, missing first action; (nA-1 x nS)-array
   policyProbs : function returning probability of observed action at given state,
                 under policy with parameter beta
   eps : epsilon used in epsilon-greedy
@@ -77,7 +73,7 @@ def vPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, refDist=None):
   -------
   (Negative) estimated value of policy indexed by beta wrt refDist.  
   '''
-  
+  beta = np.append(np.zeros(F_Pi.shape[1]), beta)  #add row of zeros corresponding to first action 
   theta = thetaPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts)
   if refDist is None:
     return -np.mean(np.dot(F_V, theta))
@@ -124,9 +120,10 @@ def betaOpt(policyProbs, eps, M, A, R, F_Pi, F_V, Mu, wStart=None, refDist=None,
       btsWts = np.ones(F_V.shape[0] - 1)
     objective = lambda beta: vPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, refDist=refDist)
     if wStart is None:       
-      wStart = np.random.normal(scale=1000, size=(nA, nPi))
+      wStart = np.random.normal(scale=1000, size=(nA-1, nPi)) #Leave out first action, since this is all zeros 
     betaOpt = VLopt(objective, x0=wStart, initializer=initializer)
-    thetaOpt = thetaPi(betaOpt, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts)
+    betaOpt = np.vstack((np.zeros(betaOpt.shape[1]), betaOpt))
+    thetaOpt = thetaPi(betaOpt.ravel(), policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts)
     return {'betaHat':betaOpt, 'thetaHat':thetaOpt, 'objective':objective}
   
   
