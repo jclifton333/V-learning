@@ -36,7 +36,4 @@ RL API appropriate for V-learning, from which each environment inherits.
 
 ### ToDo 
 
-1. Test new VL_env class structure.
-2. Refactor directory structure - want a VLenvironment directory, with separate scripts for each environment;  
-   a VL directory for the V-learning algorithm; and a utils directory. 
-3. Address TODOs in simulate.py and randomFiniteMDP class in VLenvironment.py.
+* Environment-specific parameter update schedules
