@@ -139,7 +139,7 @@ def simulate(bts, epsilon, initializer, label, envName, gamma, nEp, fixUpTo, wri
       a = env._get_action(fPi, betaHat)
       fPi, F_V, F_Pi, A, R, Mu, M, refDist, done, reward = env.step(a, betaHat)
       if not done:
-        if env.s in env.PATH: 
+        if env.update_schedule(): 
           res = env.betaOpt(policyProbs, epsilon, M, A, R, F_Pi, F_V, Mu, bts = bts, wStart = betaHat[1:,:], refDist = refDist, initializer = initializer)
           betaHat, tHat = res['betaHat'], res['thetaHat']
     t1 = time.time()

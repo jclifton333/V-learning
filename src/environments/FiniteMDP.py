@@ -62,12 +62,9 @@ class FiniteMDP(VL_env):
     s = 0
     s_dummy = self.onehot(s)
     self.s = s
-    self.episodeSteps = 0 
-    self.totalSteps = 0
     self.fV = self.vFeatures(s_dummy)
     self.fPi = self.piFeatures(s_dummy) 
-    self.F_V = np.vstack((self.F_V, self.fV))
-    self.F_Pi = np.vstack((self.F_Pi, self.fPi)) 
+    self._reset_super()
     return self.fPi 
   
   def step(self, action, bHat, state = None):
@@ -149,6 +146,12 @@ class SimpleMDP(FiniteMDP):
     #Initialize as FiniteMDP subclass
     FiniteMDP.__init__(self, maxT, gamma, epsilon, transitionMatrices, rewardMatrices, SimpleMDP.TERMINAL)
 
+  def update_schedule(self): 
+    '''    
+    Returns boolean for whether it's time to re-estimate policy parameters.
+    '''
+    return True
+    
 class RandomFiniteMDP(FiniteMDP):
   '''
   Creates a FiniteMDP object from a random set of transitions and rewards. 
@@ -175,6 +178,12 @@ class RandomFiniteMDP(FiniteMDP):
 
     #Initialize as FiniteMDP subclass 
     FiniteMDP.__init__(self, maxT, gamma, epsilon, transitionMatrices, rewardMatrices, RandomFiniteMDP.TERMINAL, fixUpTo=fixUpTo)
+  
+  def update_schedule(self): 
+    '''    
+    Returns boolean for whether it's time to re-estimate policy parameters.
+    '''
+    return True 
     
 class Gridworld(FiniteMDP): 
   '''
@@ -268,4 +277,11 @@ class Gridworld(FiniteMDP):
     #Initialize as FiniteMDP subclass
     FiniteMDP.__init__(self, maxT, gamma, epsilon, transitionMatrices, rewardMatrices, Gridworld.TERMINAL)
 
+  def update_schedule(self): 
+    '''    
+    Returns boolean for whether it's time to re-estimate policy parameters.
     
+    Update only at deterministic-transition states (irrelevant elsewhere since transitions are 
+    independent of policy).
+    '''
+    return self.s in self.PATH

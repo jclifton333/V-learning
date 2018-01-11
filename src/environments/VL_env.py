@@ -32,6 +32,7 @@ class VL_env(object):
     self.NUM_ACTION = NUM_ACTION
     self.fixUpTo = fixUpTo    
     self.totalStepsCounter = 0
+    self.episode = -1 #Will be incremented to 0 at first reset  
     self.gamma = gamma 
     self.epsilon = epsilon
     self.betaOpt = betaOpt
@@ -114,7 +115,16 @@ class VL_env(object):
     action = (epsProb > self.epsilon) * np.random.choice(self.NUM_ACTION, p=aProbs) + \
              (epsProb <= self.epsilon) * np.random.choice(self.NUM_ACTION, p=np.ones(self.NUM_ACTION) / self.NUM_ACTION) 
     return action   
-    
+  
+  def _reset_super(self):
+    '''
+    Carries out reset functions common to all environments; called in self.reset.  
+    '''
+    self.episodeSteps = 0 
+    self.episode += 1
+    self.F_V = np.vstack((self.F_V, self.fV))
+    self.F_Pi = np.vstack((self.F_Pi, self.fPi)) 
+  
   @abstractmethod
   def reset(self):
     '''
@@ -140,5 +150,11 @@ class VL_env(object):
     Next state, boolean for simulation having terminated, data matrices
     '''    
     pass
-        
+    
+  @abstractmethod
+  def update_schedule(self):
+    '''    
+    Returns boolean for whether it's time to re-estimate policy parameters.
+    '''
+    pass 
   

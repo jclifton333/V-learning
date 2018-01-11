@@ -31,13 +31,11 @@ class Cartpole(VL_env):
     '''
     Starts a new simulation, adds initial state to data.
     '''
-    self.episodeSteps = 0 
     s = self.env.reset()
     s = s[2:]
     self.fV = self.vFeatures(s)
     self.fPi = self.piFeatures(s)
-    self.F_V = np.vstack((self.F_V, self.fV))
-    self.F_Pi = np.vstack((self.F_Pi, self.fPi))
+    self._reset_super()
     return self.fPi 
   
   def step(self, action, bHat, state = None):
@@ -73,3 +71,9 @@ class Cartpole(VL_env):
     
     data = self._update_data(action, bHat, done, reward, sNext)    
     return data      
+
+  def update_schedule(self): 
+    '''    
+    Returns boolean for whether it's time to re-estimate policy parameters.
+    '''
+    return (self.episode < 30 and self.episodeSteps % (self.episode + 1) == 0) or (self.episode >= 30 and self.episodeSteps == 1)
