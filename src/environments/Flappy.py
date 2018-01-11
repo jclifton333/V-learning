@@ -1,5 +1,10 @@
-from ple.games.flappybird import FlappyBird
-from ple import PLE
+PLE_IMPORT_ERROR_MESSAGE = "Couldn't import gym module.  You won't be able to use the Flappy environment."
+
+try: 
+  from ple.games.flappybird import FlappyBird
+  from ple import PLE
+except ModuleNotFoundError or ImportError:
+  print(GYM_IMPORT_ERROR_MESSAGE)
 from VL_env import VL_env 
 import numpy as np
 

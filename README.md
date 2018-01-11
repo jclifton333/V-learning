@@ -36,4 +36,4 @@ RL API appropriate for V-learning, from which each environment inherits.
 
 ### ToDo 
 
-* Implement option for "prior" in estimation of beta; this is currently implemented with no option
+* Make sure function parameter and return descriptions are up-to-date; improve documentation generally 

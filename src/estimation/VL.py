@@ -19,7 +19,7 @@ import numpy as np
 from VLopt import VLopt
 import scipy.linalg as la 
 
-def thetaPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts):  
+def thetaPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, thetaTilde):  
   '''
   Estimates theta associated with policy indexed by beta.    
   
@@ -35,7 +35,9 @@ def thetaPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts):
   F_Pi : Policy features at each timestep (2d array of size T x nPi)
   F_V : V-function features at each timestep (2d array of size T x nV)
   Mu : Probabilities of observed actions under policies mu_t (1d array of size T)
-  
+  btsWts : 1d array of weights for terms in V-function estimating equation 
+  thetaTilde : 1d vector to shrink towards in V-function estimation 
+
   Returns
   -------
   Estimate of theta 
@@ -46,11 +48,10 @@ def thetaPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts):
   w = np.array([btsWts[i] * float(policyProbs(A[i,:], F_Pi[i,:], beta, eps=eps)) / Mu[i] for i in range(T)])
   sumRS = np.sum(np.multiply(F_V[:-1,:], np.multiply(w, R).reshape(T,1)), axis=0)
   sumM  = np.sum(np.multiply(M, w.reshape(T, 1, 1)), axis=0)
-  thetaTilde = np.random.normal(size = sumRS.shape)
   LU = la.lu_factor(sumM + 0.01*np.eye(p)) 
   return la.lu_solve(LU, thetaTilde + sumRS)
   
-def vPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, refDist=None):
+def vPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, thetaTilde, refDist=None):
   '''
   Returns estimated value of policy indexed by beta.  
   
@@ -66,6 +67,8 @@ def vPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, refDist=None):
   F_Pi : Policy features at each timestep (2d array of size T x nPi)
   F_V : V-function features at each timestep (2d array of size T x nV)
   Mu : Probabilities of observed actions under policies mu_t (1d array of size T)
+  btsWts : 1d array of weights for terms in V-function estimating equation 
+  thetaTilde : 1d vector to shrink towards in V-function estimation 
   refDist : Reference distribution for estimating value (2d array with v-function features as rows).
            If None, uses F_V as reference distribution.  
   
@@ -74,14 +77,14 @@ def vPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, refDist=None):
   (Negative) estimated value of policy indexed by beta wrt refDist.  
   '''
   beta = np.append(np.zeros(F_Pi.shape[1]), beta)  #add row of zeros corresponding to first action 
-  theta = thetaPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts)
+  theta = thetaPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, thetaTilde)
   if refDist is None:
     return -np.mean(np.dot(F_V, theta))
   else: 
     return -np.mean(np.dot(refDist, theta))
 
       
-def betaOpt(policyProbs, eps, M, A, R, F_Pi, F_V, Mu, wStart=None, refDist=None, bts=True, initializer=None):
+def betaOpt(policyProbs, eps, M, A, R, F_Pi, F_V, Mu, wStart=None, refDist=None, bts=True, randomShrink=True, initializer=None):
   '''
   Optimizes policy value over class of softmax policies indexed by beta. 
   
@@ -100,6 +103,7 @@ def betaOpt(policyProbs, eps, M, A, R, F_Pi, F_V, Mu, wStart=None, refDist=None,
            If None, initializes to all 0s.  
   refDist: Reference distribution for estimating value (2d array with v-function features as rows).
            If None, use F_V as reference distribution.  
+  randomShrink: boolean for shrinking towards randomly generated vector in v-function estimation
   bts: boolean for using (exponential) bootstrap Thompson sampling
   initializer: value in [None, 'basinhop', 'multistart'] for optimizer initialization method
   
@@ -118,12 +122,16 @@ def betaOpt(policyProbs, eps, M, A, R, F_Pi, F_V, Mu, wStart=None, refDist=None,
       btsWts = np.random.exponential(size = F_V.shape[0] - 1) 
     else: 
       btsWts = np.ones(F_V.shape[0] - 1)
-    objective = lambda beta: vPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, refDist=refDist)
+    if randomShrink: 
+      thetaTilde = np.random.normal(size=nV)
+    else:
+      thetaTilde = np.zeros(nV)
+    objective = lambda beta: vPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, thetaTilde, refDist=refDist)
     if wStart is None:       
       wStart = np.random.normal(scale=1000, size=(nA-1, nPi)) #Leave out first action, since this is all zeros 
     betaOpt = VLopt(objective, x0=wStart, initializer=initializer)
     betaOpt = np.vstack((np.zeros(betaOpt.shape[1]), betaOpt))
-    thetaOpt = thetaPi(betaOpt.ravel(), policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts)
+    thetaOpt = thetaPi(betaOpt.ravel(), policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, thetaTilde)
     return {'betaHat':betaOpt, 'thetaHat':thetaOpt, 'objective':objective}
   
   

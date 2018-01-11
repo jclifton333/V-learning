@@ -1,12 +1,31 @@
+#!/usr/bin/python3
+
 import sys 
 sys.path.append('src')
 sys.path.append('src/environments')
 sys.path.append('src/utils')
 sys.path.append('src/estimation')
 
-from Cartpole import Cartpole 
-from Flappy import Flappy 
+#Environment imports 
+VALID_ENVIRONMENT_NAMES = ['SimpleMDP', 'Gridworld', 'RandomFiniteMDP'] 
+GYM_IMPORT_ERROR_MESSAGE = "Couldn't import gym module.  You won't be able to use the Cartpole environment."
+PLE_IMPORT_ERROR_MESSAGE = "Couldn't import ple module.  You won't be able to use the Flappy environment."
+
+##Try to import Flappy, which depends on ple module
+try: 
+  from Flappy import Flappy 
+  VALID_ENVIRONMENT_NAMES.append('Flappy')
+except ImportError:
+  print(PLE_IMPORT_ERROR_MESSAGE)
+  
+##Try to import Cartpole, which depends on gym module
+try: 
+  from Cartpole import Cartpole 
+  VALID_ENVIRONMENT_NAMES.append('Cartpole')
+except ImportError:
+  print(GYM_IMPORT_ERROR_MESSAGE)  
 from FiniteMDP import RandomFiniteMDP, SimpleMDP, Gridworld
+
 from VL import betaOpt
 from policy_utils import pi, policyProbs
 from functools import partial 
@@ -15,15 +34,12 @@ import numpy as np
 import argparse 
 import multiprocessing as mp
 import multiprocessing.pool as pl
-import FiniteMDP
 import time
 import pickle as pkl
 
 '''
 Global simulation variables. 
 '''
-VALID_ENVIRONMENT_NAMES = ['Flappy', 'SimpleMDP', 'Gridworld', 'RandomFiniteMDP', 'Cartpole'] 
-
 #Cartpole
 DEFAULT_REWARD = False
 
@@ -105,9 +121,9 @@ def getEnvironment(envName, gamma, epsilon, fixUpTo):
   else: 
     raise ValueError('Incorrect environment name.  Choose name in {}.'.format(VALID_ENVIRONMENT_NAMES))
     
-def simulate(bts, epsilon, initializer, label, envName, gamma, nEp, fixUpTo, write = False):
+def simulate(bts, epsilon, initializer, label, randomShrink, envName, gamma, nEp, fixUpTo, write = False):
   '''
-  Runs simulation with V-learning for an environment with a binary action space.
+  Runs simulation with V-learning.
   
   Parameters 
   ----------
@@ -115,6 +131,7 @@ def simulate(bts, epsilon, initializer, label, envName, gamma, nEp, fixUpTo, wri
   epsilon : exploration rate 
   initializer: value in [None, 'basinhop', 'multistart'] for optimizer initialization method
   label : label for filename, if write is True
+  randomShrink: boolean for shrinking towards randomly generated vector in v-function estimation
   envName : string in VALID_ENVIRONMENT_NAMES specifying environment to simulate
   gamma : discount factor
   nEp: number of episodes 
@@ -124,7 +141,7 @@ def simulate(bts, epsilon, initializer, label, envName, gamma, nEp, fixUpTo, wri
   '''
 
   #Initialize  
-  #TODO: return betaHat in env.reset; make totalStepsCounter an env attribute 
+  #TODO: return betaHat in env.reset
   env = getEnvironment(envName, gamma, epsilon, fixUpTo)
   betaHat = np.zeros((env.NUM_ACTION, env.nPi))
   save_data = data(envName, fixUpTo, initializer, label, epsilon, bts, write = write)
@@ -134,19 +151,16 @@ def simulate(bts, epsilon, initializer, label, envName, gamma, nEp, fixUpTo, wri
     fPi = env.reset() 
     done = False 
     score = 0 
-    t0 = time.time()
+    #t0 = time.time()
     while not done: 
       a = env._get_action(fPi, betaHat)
       fPi, F_V, F_Pi, A, R, Mu, M, refDist, done, reward = env.step(a, betaHat)
       if not done:
         if env.update_schedule(): 
-          res = env.betaOpt(policyProbs, epsilon, M, A, R, F_Pi, F_V, Mu, bts = bts, wStart = betaHat[1:,:], refDist = refDist, initializer = initializer)
+          res = env.betaOpt(policyProbs, epsilon, M, A, R, F_Pi, F_V, Mu, bts = bts, randomShrink = randomShrink, wStart = betaHat[1:,:], refDist = refDist, initializer = initializer)
           betaHat, tHat = res['betaHat'], res['thetaHat']
-    t1 = time.time()
+    #t1 = time.time()
     print('Episode {} Score: {} BTS: {}'.format(ep, env.episodeSteps, bts))
-    #if envName in ['RandomFiniteMDP', 'Gridworld', 'SimpleMDP']: #Display policy and value information for finite MDP
-    #  env.evaluatePolicies(betaHat)
-      
     save_data.update(ep, score, betaHat, tHat)      
   return 
   
@@ -157,6 +171,7 @@ if __name__ == "__main__":
   parser.add_argument('--epsilon', type=float, help="Exploration rate.")
   parser.add_argument('--bts', type=str2bool, help="Boolean for using (exponential) BTS.")
   parser.add_argument('--initializer', type=strOrNone, choices=[None, 'basinhop', 'multistart'], help="String or None for optimization initialization method.")
+  parser.add_argument('--randomShrink', type=str2bool, help="Boolean for random 'prior' shrinkage in V-function estimation.")
   parser.add_argument('--randomSeed', type=int) 
   parser.add_argument('--nEp', type=int, help="Number of episodes per replicate.")
   parser.add_argument('--nRep', type=int, help="Number of replicates.")
@@ -167,7 +182,7 @@ if __name__ == "__main__":
   np.random.seed(args.randomSeed)
   
   pool = pl.ThreadPool(args.nRep)
-  simulate_partial = partial(simulate, envName = args.envName, gamma = args.gamma, nEp = args.nEp, fixUpTo = args.fixUpTo, write = args.write) 
+  simulate_partial = partial(simulate, randomShrink = args.randomShrink, envName = args.envName, gamma = args.gamma, nEp = args.nEp, fixUpTo = args.fixUpTo, write = args.write) 
   argList = [(args.bts, args.epsilon, args.initializer, label) for label in range(args.nRep)]
   pool.starmap(simulate_partial, argList) 
   pool.close()

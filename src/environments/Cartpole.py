@@ -1,5 +1,10 @@
+GYM_IMPORT_ERROR_MESSAGE = "Couldn't import gym module.  You won't be able to use the Cartpole environment."
+
 from VL_env import VL_env
-import gym
+try: 
+  import gym
+except ModuleNotFoundError or ImportError:
+  print(GYM_IMPORT_ERROR_MESSAGE)
 import numpy as np
 
 class Cartpole(VL_env):
