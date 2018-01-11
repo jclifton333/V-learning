@@ -36,4 +36,4 @@ RL API appropriate for V-learning, from which each environment inherits.
 
 ### ToDo 
 
-* Environment-specific parameter update schedules
+* Implement option for "prior" in estimation of beta; this is currently implemented with no option

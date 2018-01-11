@@ -6,7 +6,7 @@ NUM_REP=1                           #Number of replicates; simulate.py uses one 
 SEED=3                               #Random seed 
 FIX_UP_TO=400                        #Number of observations to use in reference distribution
 WRITE='False'                        #Boolean for writing results to file 
-ENV_NAME='Gridworld'           #Simulation environment name ('Cartpole', 'FlappyBirdEnv', 'RandomFiniteMDP', 'SimpleMDP', or 'Gridworld')
+ENV_NAME='Cartpole'                 #Simulation environment name ('Cartpole', 'FlappyBirdEnv', 'RandomFiniteMDP', 'SimpleMDP', or 'Gridworld')
 
 mkdir -p results
 mkdir -p results/$ENV_NAME

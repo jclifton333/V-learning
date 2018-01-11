@@ -31,7 +31,7 @@ class VL_env(object):
     self.NUM_STATE = NUM_STATE 
     self.NUM_ACTION = NUM_ACTION
     self.fixUpTo = fixUpTo    
-    self.totalStepsCounter = 0
+    self.totalSteps = 0
     self.episode = -1 #Will be incremented to 0 at first reset  
     self.gamma = gamma 
     self.epsilon = epsilon
