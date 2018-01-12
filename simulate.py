@@ -24,8 +24,8 @@ try:
   VALID_ENVIRONMENT_NAMES.append('Cartpole')
 except ImportError:
   print(GYM_IMPORT_ERROR_MESSAGE)  
+  
 from FiniteMDP import RandomFiniteMDP, SimpleMDP, Gridworld
-
 from VL import betaOpt
 from policy_utils import pi, policyProbs
 from functools import partial 
@@ -141,9 +141,10 @@ def simulate(bts, epsilon, initializer, label, randomShrink, envName, gamma, nEp
   '''
 
   #Initialize  
-  #TODO: return betaHat in env.reset
+  #TODO: return betaHat, tHat from environment? 
   env = getEnvironment(envName, gamma, epsilon, fixUpTo)
   betaHat = np.zeros((env.NUM_ACTION, env.nPi))
+  tHat = np.zeros(env.nV)  
   save_data = data(envName, fixUpTo, initializer, label, epsilon, bts, write = write)
       
   #Run sim

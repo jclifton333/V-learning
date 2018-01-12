@@ -1,10 +1,11 @@
 # V-learning
 
-### Method 
+This repo hosts code for a research project on using bootstrapping to approximate Thompson sampling in model-free
+reinforcement learning. 
 
-Source code implements the V-learning method described in [Luckett et al.](https://arxiv.org/pdf/1611.03531.pdf), 
-with the option to use bootstrap Thompson sampling (`bts`), in which the terms in the sum in the estimating equation 
-that is solved to estimate the V-function are perturbed by Exponential(1) random variables.  
+`src` implements the V-learning method described in [Luckett et al.](https://arxiv.org/pdf/1611.03531.pdf), with the 
+additional option to use bootstrap Thompson sampling.  In this case, the terms in the sum in the estimating equation 
+used to estimate the V-function are perturbed by Exponential(1) random variables.   
 
 ### Running simulations 
 
@@ -22,9 +23,10 @@ RL API appropriate for V-learning, from which each environment inherits.
 
 * ```VL_env``` 
 
-  - ```Cartpole```
+  - ```Cartpole```: classic Cartpole control task 
   
-  - ```Flappy``` 
+  - ```Flappy```: Flappy Bird game; the size of the state space and sample complexity have so far 
+                  prohibited convergence to a good policy in a reasonable amount of time 
   
   - ```FiniteMDP```: for MDPs with finite state spaces
   
@@ -36,4 +38,5 @@ RL API appropriate for V-learning, from which each environment inherits.
 
 ### ToDo 
 
+* Test Flappy environment 
 * Make sure function parameter and return descriptions are up-to-date; improve documentation generally 
