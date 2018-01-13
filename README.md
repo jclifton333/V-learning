@@ -7,6 +7,10 @@ reinforcement learning.
 additional option to use bootstrap Thompson sampling.  In this case, the terms in the sum in the estimating equation 
 used to estimate the V-function are perturbed by Exponential(1) random variables.   
 
+There is now also the option to use an advantage actor-critic variant of the V-learning method, in which 
+the V-function is estimated for a given policy, and then used to take a stochastic advantage-estimate policy-gradient 
+step on the policy parameters.  
+
 ### Running simulations 
 
 ```sh
@@ -38,6 +42,6 @@ RL API appropriate for V-learning, from which each environment inherits.
 
 ### ToDo 
 
-* Implement Actor-Critic variant 
+* Implement environment for glucose generative model in Luckett et al. paper
 * Test Flappy environment 
 * Make sure function parameter and return descriptions are up-to-date; improve documentation generally 
