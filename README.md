@@ -38,5 +38,6 @@ RL API appropriate for V-learning, from which each environment inherits.
 
 ### ToDo 
 
+* Implement Actor-Critic variant 
 * Test Flappy environment 
 * Make sure function parameter and return descriptions are up-to-date; improve documentation generally 

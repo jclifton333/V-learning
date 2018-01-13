@@ -112,7 +112,7 @@ class FiniteMDP(VL_env):
     #Compute pi_beta 
     pi_beta = np.zeros(self.NUM_STATE)
     for s in range(self.NUM_STATE): 
-      pi_beta[s] = self.pi(self.onehot(s), beta) 
+      pi_beta[s] = np.argmax(self.pi(self.onehot(s), beta))
     pi_beta = np.round(pi_beta)
     v_beta = compute_vpi(pi_beta, self)      
     print('pi opt: {} v opt: {}\n pi beta: {} v beta: {} beta: {}'.format(self.optimalPolicy, 
@@ -127,7 +127,7 @@ class SimpleMDP(FiniteMDP):
   NUM_ACTION = 2 
   TERMINAL = [] 
   
-  def __init__(self, maxT, gamma = 0.9, epsilon = 0.1):
+  def __init__(self, maxT, gamma = 0.9, epsilon = 0.1, fixUpTo=None):
     '''
    
     Parameters
@@ -144,7 +144,7 @@ class SimpleMDP(FiniteMDP):
     rewardMatrices[[0,0],[2,3],[3,3]] = 1
     
     #Initialize as FiniteMDP subclass
-    FiniteMDP.__init__(self, maxT, gamma, epsilon, transitionMatrices, rewardMatrices, SimpleMDP.TERMINAL)
+    FiniteMDP.__init__(self, maxT, gamma, epsilon, transitionMatrices, rewardMatrices, SimpleMDP.TERMINAL, fixUpTo = fixUpTo)
 
   def update_schedule(self): 
     '''    

@@ -45,7 +45,7 @@ DEFAULT_REWARD = False
 
 #FiniteMDPs 
 NUM_RANDOM_FINITE_STATE = 3 #Number of states if randomFiniteMDP is chosen
-NUM_RANDOM_FINITE_ACTION = 3
+NUM_RANDOM_FINITE_ACTION = 2
 MAX_T_FINITE = 50 #Max number of timesteps per episode if randomFiniteMDP is chosen
 
 #Flappy Bird
@@ -161,6 +161,7 @@ def simulate(bts, epsilon, initializer, label, randomShrink, envName, gamma, nEp
           res = env.betaOpt(policyProbs, epsilon, M, A, R, F_Pi, F_V, Mu, bts = bts, randomShrink = randomShrink, wStart = betaHat[1:,:], refDist = refDist, initializer = initializer)
           betaHat, tHat = res['betaHat'], res['thetaHat']
     #t1 = time.time()
+    env.evaluatePolicies(betaHat)
     print('Episode {} Score: {} BTS: {}'.format(ep, env.episodeSteps, bts))
     save_data.update(ep, score, betaHat, tHat)      
   return 
