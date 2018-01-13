@@ -26,8 +26,9 @@ except ImportError:
   print(GYM_IMPORT_ERROR_MESSAGE)  
   
 from FiniteMDP import RandomFiniteMDP, SimpleMDP, Gridworld
-from VL import betaOpt
+from VL import betaOpt, thetaPi
 from policy_utils import pi, policyProbs
+from policy_gradient import total_policy_gradient
 from functools import partial 
 from utils import str2bool, intOrNone, strOrNone
 import numpy as np
@@ -121,7 +122,7 @@ def getEnvironment(envName, gamma, epsilon, fixUpTo):
   else: 
     raise ValueError('Incorrect environment name.  Choose name in {}.'.format(VALID_ENVIRONMENT_NAMES))
     
-def simulate(bts, epsilon, initializer, label, randomShrink, envName, gamma, nEp, fixUpTo, write = False):
+def simulate(bts, epsilon, initializer, label, randomShrink, envName, gamma, nEp, fixUpTo, actorCritic, write = False):
   '''
   Runs simulation with V-learning.
   
@@ -144,7 +145,7 @@ def simulate(bts, epsilon, initializer, label, randomShrink, envName, gamma, nEp
   #TODO: return betaHat, tHat from environment? 
   env = getEnvironment(envName, gamma, epsilon, fixUpTo)
   betaHat = np.zeros((env.NUM_ACTION, env.nPi))
-  tHat = np.zeros(env.nV)  
+  thetaHat = np.zeros(env.nV)  
   save_data = data(envName, fixUpTo, initializer, label, epsilon, bts, write = write)
       
   #Run sim
@@ -157,13 +158,18 @@ def simulate(bts, epsilon, initializer, label, randomShrink, envName, gamma, nEp
       a = env._get_action(fPi, betaHat)
       fPi, F_V, F_Pi, A, R, Mu, M, refDist, done, reward = env.step(a, betaHat)
       if not done:
-        if env.update_schedule(): 
-          res = env.betaOpt(policyProbs, epsilon, M, A, R, F_Pi, F_V, Mu, bts = bts, randomShrink = randomShrink, wStart = betaHat[1:,:], refDist = refDist, initializer = initializer)
-          betaHat, tHat = res['betaHat'], res['thetaHat']
+        if actorCritic: 
+          thetaHat = thetaPi(betaHat, policyProbs, epsilon, M, A, R, F_Pi, F_V, Mu, btsWts = np.ones(F_V.shape[0]-1), thetaTilde = np.zeros(len(thetaHat)))
+          betaHatGrad = total_policy_gradient(betaHat, A, R, F_Pi, F_V, thetaHat)
+          betaHat += 1/np.sqrt(env.totalSteps+1) * betaHatGrad
+        else:
+          if env.update_schedule(): 
+            res = env.betaOpt(policyProbs, epsilon, M, A, R, F_Pi, F_V, Mu, bts = bts, randomShrink = randomShrink, wStart = betaHat[1:,:], refDist = refDist, initializer = initializer)
+            betaHat, thetaHat = res['betaHat'], res['thetaHat']
     #t1 = time.time()
-    env.evaluatePolicies(betaHat)
+    #env.evaluatePolicies(betaHat)
     print('Episode {} Score: {} BTS: {}'.format(ep, env.episodeSteps, bts))
-    save_data.update(ep, score, betaHat, tHat)      
+    save_data.update(ep, score, betaHat, thetaHat)      
   return 
   
 if __name__ == "__main__":
@@ -179,12 +185,14 @@ if __name__ == "__main__":
   parser.add_argument('--nRep', type=int, help="Number of replicates.")
   parser.add_argument('--write', type=str2bool, help="Boolean for writing results to file.")
   parser.add_argument('--fixUpTo', type=intOrNone, help="Integer for number of observations to include in reference distribution, or None")
+  parser.add_argument('--actorCritic', type=str2bool, help="Boolean for using actor-critic instead of regular v-learning.")
   args = parser.parse_args()
     
   np.random.seed(args.randomSeed)
   
   pool = pl.ThreadPool(args.nRep)
-  simulate_partial = partial(simulate, randomShrink = args.randomShrink, envName = args.envName, gamma = args.gamma, nEp = args.nEp, fixUpTo = args.fixUpTo, write = args.write) 
+  simulate_partial = partial(simulate, randomShrink = args.randomShrink, envName = args.envName, gamma = args.gamma, 
+                     nEp = args.nEp, fixUpTo = args.fixUpTo, args.actorCritic, write = args.write) 
   argList = [(args.bts, args.epsilon, args.initializer, label) for label in range(args.nRep)]
   pool.starmap(simulate_partial, argList) 
   pool.close()
