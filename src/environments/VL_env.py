@@ -86,7 +86,11 @@ class VL_env(object):
     
     self.fV  = fVNext
     self.fPi = fPiNext
-    self.A = np.vstack((self.A, onehot(action, self.NUM_ACTION))) 
+    if isinstance(action, int): 
+      act_vec = onehot(action, self.NUM_ACTION)
+    else: 
+      act_vec = action 
+    self.A = np.vstack((self.A, act_vec)) 
     self.R = np.append(self.R, reward)
     self.Mu = np.append(self.Mu, mu)
     self.M = np.concatenate((self.M, [outerProd]), axis=0)
@@ -155,6 +159,13 @@ class VL_env(object):
   def update_schedule(self):
     '''    
     Returns boolean for whether it's time to re-estimate policy parameters.
+    '''
+    pass 
+    
+  @abstractmethod 
+  def report(self, betaHat):
+    '''
+    Prints information about the current state of the iterates. 
     '''
     pass 
   

@@ -30,7 +30,6 @@ class Cartpole(VL_env):
                    gamma, epsilon, fixUpTo, vFeatureArgs, piFeatureArgs)
     self.env = gym.make('CartPole-v0')
     self.defaultReward = defaultReward    
-    self.NUM_ACTION = Cartpole.NUM_ACTION
    
   def reset(self):
     '''
@@ -82,3 +81,10 @@ class Cartpole(VL_env):
     Returns boolean for whether it's time to re-estimate policy parameters.
     '''
     return (self.episode < 30 and self.episodeSteps % (self.episode + 1) == 0) or (self.episode >= 30 and self.episodeSteps == 1)
+    
+  def report(self, betaHat): 
+    '''
+    Reports episode and score. 
+    '''
+    REPORT = 'Episode {} Score: {}'.format(self.episode, self.episodeSteps)
+    print(REPORT)

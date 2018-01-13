@@ -7,7 +7,7 @@ sys.path.append('src/utils')
 sys.path.append('src/estimation')
 
 #Environment imports 
-VALID_ENVIRONMENT_NAMES = ['SimpleMDP', 'Gridworld', 'RandomFiniteMDP'] 
+VALID_ENVIRONMENT_NAMES = ['SimpleMDP', 'Gridworld', 'RandomFiniteMDP', 'Glucose'] 
 GYM_IMPORT_ERROR_MESSAGE = "Couldn't import gym module.  You won't be able to use the Cartpole environment."
 PLE_IMPORT_ERROR_MESSAGE = "Couldn't import ple module.  You won't be able to use the Flappy environment."
 
@@ -26,6 +26,7 @@ except ImportError:
   print(GYM_IMPORT_ERROR_MESSAGE)  
   
 from FiniteMDP import RandomFiniteMDP, SimpleMDP, Gridworld
+from Glucose import Glucose
 from VL import betaOpt, thetaPi
 from policy_utils import pi, policyProbs
 from policy_gradient import total_policy_gradient
@@ -51,6 +52,9 @@ MAX_T_FINITE = 50 #Max number of timesteps per episode if randomFiniteMDP is cho
 
 #Flappy Bird
 DISPLAY_SCREEN = False
+
+#Glucose
+MAX_T_GLUCOSE = 100
 
 class data(object):
   '''
@@ -119,6 +123,8 @@ def getEnvironment(envName, gamma, epsilon, fixUpTo):
     return SimpleMDP(MAX_T_FINITE, gamma, epsilon, fixUpTo = fixUpTo) 
   elif envName == 'Gridworld':
     return Gridworld(MAX_T_FINITE, gamma, epsilon, fixUpTo = fixUpTo) 
+  elif envName == 'Glucose':
+    return Glucose(MAX_T_GLUCOSE, gamma, epsilon, fixUpTo=fixUpTo)
   else: 
     raise ValueError('Incorrect environment name.  Choose name in {}.'.format(VALID_ENVIRONMENT_NAMES))
     
@@ -161,14 +167,13 @@ def simulate(bts, epsilon, initializer, label, randomShrink, envName, gamma, nEp
         if actorCritic: 
           thetaHat = thetaPi(betaHat, policyProbs, epsilon, M, A, R, F_Pi, F_V, Mu, btsWts = np.ones(F_V.shape[0]-1), thetaTilde = np.zeros(len(thetaHat)))
           betaHatGrad = total_policy_gradient(betaHat, A, R, F_Pi, F_V, thetaHat)
-          betaHat += 1/np.sqrt(env.totalSteps+1) * betaHatGrad
+          betaHat += 10/np.sqrt(env.totalSteps+1) * betaHatGrad
         else:
           if env.update_schedule(): 
             res = env.betaOpt(policyProbs, epsilon, M, A, R, F_Pi, F_V, Mu, bts = bts, randomShrink = randomShrink, wStart = betaHat[1:,:], refDist = refDist, initializer = initializer)
             betaHat, thetaHat = res['betaHat'], res['thetaHat']
     #t1 = time.time()
-    #env.evaluatePolicies(betaHat)
-    print('Episode {} Score: {} BTS: {}'.format(ep, env.episodeSteps, bts))
+    env.report(betaHat)
     save_data.update(ep, score, betaHat, thetaHat)      
   return 
   
@@ -192,7 +197,7 @@ if __name__ == "__main__":
   
   pool = pl.ThreadPool(args.nRep)
   simulate_partial = partial(simulate, randomShrink = args.randomShrink, envName = args.envName, gamma = args.gamma, 
-                     nEp = args.nEp, fixUpTo = args.fixUpTo, args.actorCritic, write = args.write) 
+                     nEp = args.nEp, fixUpTo = args.fixUpTo, actorCritic = args.actorCritic, write = args.write) 
   argList = [(args.bts, args.epsilon, args.initializer, label) for label in range(args.nRep)]
   pool.starmap(simulate_partial, argList) 
   pool.close()

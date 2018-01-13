@@ -102,7 +102,7 @@ class FiniteMDP(VL_env):
     data = self._update_data(action, bHat, done, reward, self.onehot(sNext))    
     return data 
     
-  def evaluatePolicies(self, beta):
+  def report(self, beta):
     '''
     Display optimal policy and policy associated with parameters beta.  
     
@@ -115,10 +115,11 @@ class FiniteMDP(VL_env):
       pi_beta[s] = np.argmax(self.pi(self.onehot(s), beta))
     pi_beta = np.round(pi_beta)
     v_beta = compute_vpi(pi_beta, self)      
-    print('pi opt: {} v opt: {}\n pi beta: {} v beta: {} beta: {}'.format(self.optimalPolicy, 
-          self.optimalPolicyValue, pi_beta, v_beta, beta))
-
     
+    REPORT = 'Episode {} Total Reward: {}\npi opt: {} v opt: {}\n pi beta: {} v beta: {} beta: {}'
+    print(REPORT.format(self.episode, np.sum(self.R[-self.episodeSteps:]), self.optimalPolicy, 
+          self.optimalPolicyValue, pi_beta, v_beta, beta))
+          
 class SimpleMDP(FiniteMDP):
   '''
   A simple MDP with 2 actions and 4 states.  This is for testing.  
