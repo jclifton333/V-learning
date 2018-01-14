@@ -29,16 +29,16 @@ from FiniteMDP import RandomFiniteMDP, SimpleMDP, Gridworld
 from Glucose import Glucose
 from VL import betaOpt, thetaPi
 from policy_utils import pi, policyProbs
-from policy_gradient import total_policy_gradient
+from policy_gradient import total_policy_gradient, log_policy_gradient, advantage_estimate 
 from functools import partial 
-from utils import str2bool, intOrNone, strOrNone
+from utils import str2bool, intOrNone, strOrNone, onehot
 import numpy as np
 import argparse 
 import multiprocessing as mp
 import multiprocessing.pool as pl
 import time
 import pickle as pkl
-
+import pdb
 '''
 Global simulation variables. 
 '''
@@ -46,9 +46,9 @@ Global simulation variables.
 DEFAULT_REWARD = False
 
 #FiniteMDPs 
-NUM_RANDOM_FINITE_STATE = 3 #Number of states if randomFiniteMDP is chosen
+NUM_RANDOM_FINITE_STATE = 3 #Number of states if RandomFiniteMDP is chosen
 NUM_RANDOM_FINITE_ACTION = 2
-MAX_T_FINITE = 50 #Max number of timesteps per episode if randomFiniteMDP is chosen
+MAX_T_FINITE = 50 #Max number of timesteps per episode if a FiniteMDP is chosen
 
 #Flappy Bird
 DISPLAY_SCREEN = False
@@ -163,17 +163,30 @@ def simulate(bts, epsilon, initializer, label, randomShrink, envName, gamma, nEp
     while not done: 
       a = env._get_action(fPi, betaHat)
       fPi, F_V, F_Pi, A, R, Mu, M, refDist, done, reward = env.step(a, betaHat)
+      print('action: {} state: {}'.format(a, env.S[-1,0]))
       if not done:
         if actorCritic: 
-          thetaHat = thetaPi(betaHat, policyProbs, epsilon, M, A, R, F_Pi, F_V, Mu, btsWts = np.ones(F_V.shape[0]-1), thetaTilde = np.zeros(len(thetaHat)))
-          betaHatGrad = total_policy_gradient(betaHat, A, R, F_Pi, F_V, thetaHat)
-          betaHat += 10/np.sqrt(env.totalSteps+1) * betaHatGrad
+          if ep > 0: 
+            thetaHat = thetaPi(betaHat, policyProbs, epsilon, M, A, R, F_Pi, F_V, Mu, btsWts = np.ones(F_V.shape[0]-1), thetaTilde = np.zeros(len(thetaHat)))
+            betaHatGrad = total_policy_gradient(betaHat, A, R, F_Pi, F_V, thetaHat, env.gamma, env.epsilon)
+            betaHat += 0.01/np.sqrt(env.episode+1) * betaHatGrad
+            #betaHatGrad = log_policy_gradient(A[-1,:], fPi, betaHat, env.epsilon)
+            #adHat = advantage_estimate(env.gamma, R[-1], F_V[-2,:], F_V[-1,:], thetaHat)
+            #pdb.set_trace()
+            #betaHat += 0.001/np.sqrt(env.episode+1) * betaHatGrad*adHat 
+            bhatopt = np.array([[0,0,0,0,0,0,0,0,0],[10,-0.1,0,0,0,0,0,0,0]])
+            #topt = thetaPi(bhatopt, policyProbs, epsilon, M, A, R, F_Pi, F_V, Mu, btsWts = np.ones(F_V.shape[0]-1), thetaTilde = np.zeros(len(thetaHat)))
+            #print('topt 150: {} topt 100: {} topt 80: {} topt 50: {}'.format(np.dot(topt, env.vFeatures([150,0,0,0,0,0,0,0])), 
+            #                                                                 np.dot(topt, env.vFeatures([100,0,0,0,0,0,0,0])), 
+            #                                                                 np.dot(topt, env.vFeatures([80,0,0,0,0,0,0,0])), 
+            #                                                                 np.dot(topt, env.vFeatures([50,0,0,0,0,0,0,0]))))
         else:
           if env.update_schedule(): 
             res = env.betaOpt(policyProbs, epsilon, M, A, R, F_Pi, F_V, Mu, bts = bts, randomShrink = randomShrink, wStart = betaHat[1:,:], refDist = refDist, initializer = initializer)
             betaHat, thetaHat = res['betaHat'], res['thetaHat']
     #t1 = time.time()
     env.report(betaHat)
+    pdb.set_trace()
     save_data.update(ep, score, betaHat, thetaHat)      
   return 
   

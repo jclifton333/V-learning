@@ -18,6 +18,7 @@ from policy_utils import pi, policyProbs
 from utils import onehot 
 from policy_iteration import policy_iteration, compute_vpi
 from VL import betaOpt
+import pdb
 
 class VL_env(object):
   '''

@@ -5,7 +5,7 @@ import pdb
 
 import numpy as np
 
-def log_policy_gradient(a, s_vec, beta):
+def log_policy_gradient(a, s_vec, beta, epsilon):
   '''
   Compute the gradient with respect to beta of
   log pi_beta(a | s), where pi_beta is the softmax policy 
@@ -16,22 +16,44 @@ def log_policy_gradient(a, s_vec, beta):
   :param beta: NUM_ACTION x NUM_POLICY_FEATURE - size array of policy parameters 
   :return gradient: NUM_ACTION x NUM_POLICY_FEATURE - size array for log policy gradient 
   '''
-  assert(len(s_vec) == beta.shape[1], "State vector and policy parameter rows not of equal length.")
   gradient = np.zeros(beta.shape)
-  action_prob = policyProbs(a, s_vec, beta, eps = 0.0) 
+  action_prob = policyProbs(a, s_vec, beta, eps = epsilon) 
   action_index = np.flatnonzero(a)[0]
   gradient[action_index, :] = s_vec * (1 - action_prob)
   return gradient
   
-def advantage_estimate(r, f_V, f_Vp1, thetaHat): 
-  return r + np.dot(thetaHat, f_Vp1) - np.dot(thetaHat, f_V)
+def advantage_estimate(gamma, r, f_V, f_Vp1, thetaHat): 
+  '''
+  Computes the advantage estimate. 
   
-def total_policy_gradient(beta, A, R, F_Pi, F_V, thetaHat): 
+  :param gamma: discount 
+  :param r: reward
+  :param f_V: v-function state feature 
+  :param f_Vp1: v-function state feature at next timestep 
+  :param thetaHat: v-function parameters
+  :return: advantage estimate (scalar) 
+  '''
+  return r + gamma * np.dot(thetaHat, f_Vp1) - np.dot(thetaHat, f_V)
+  
+def total_policy_gradient(beta, A, R, F_Pi, F_V, thetaHat, gamma, epsilon): 
+  '''
+  Compute the sum of log policy gradients for a given dataset. 
+  
+  :param beta: NUM_ACTION x nPi - size softmax policy parameter value 
+  :param A: NUM_TIMESTEPS x NUM_ACTION - size array of actions 
+  :param R: NUM_TIMESTEPS - size array of rewards
+  :param F_Pi: NUM_TIMESTEPS + 1 x nPi - size array of state policy function features 
+  :param F_V: NUM_TIMESTEPS + 1 x nV - size array of state v-function features 
+  :param thetaHat: nV - size array of estimate v-function parameters  
+  :param gamma: discount 
+  :return gradient: NUM_ACTION x nPi - size policy gradient
+  '''
+
   T, p = F_V.shape[0] - 1, F_Pi.shape[1]
   gradient = np.zeros(beta.shape) 
   for i in range(T): 
-    grad = log_policy_gradient(A[i, :], F_Pi[i,:], beta) 
-    advantage = advantage_estimate(R[i], F_V[i,:], F_V[i+1,:], thetaHat)
+    grad = log_policy_gradient(A[i, :], F_Pi[i,:], beta, epsilon) 
+    advantage = advantage_estimate(gamma, R[i], F_V[i,:], F_V[i+1,:], thetaHat)
     gradient += grad*advantage
   return gradient    
 

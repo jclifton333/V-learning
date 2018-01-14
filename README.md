@@ -25,6 +25,9 @@ and save results if `WRITE` is set to `'True'`.
 Code for the simulation environments is in ```src/environments```.  The ```VL_env``` class provides a generic 
 RL API appropriate for V-learning, from which each environment inherits.
 
+The ```Cartpole``` and ```Flappy``` environments require the ```gym``` and ```ple``` (PyGame Learning Environment)
+modules, respectively.
+
 * ```VL_env``` 
 
   - ```Cartpole```: classic Cartpole control task 
