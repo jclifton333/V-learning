@@ -26,7 +26,6 @@ class Glucose(VL_env):
   SIGMA_ACT_MOD = 5 
   SIGMA_ER = 5  
   COEF = np.array([10, 0.9, 0.1, 0.1, -0.01, -0.01, -10, -4]) 
-  #COEF = np.array([10, 0.9, 0.1, 0.1, -0.01, -0.01, -10, 0]) 
   
   #Test states 
   HYPOGLYCEMIC = np.array([50, 0, 33, 50, 0, 0, 0, 0])
@@ -187,8 +186,8 @@ class Glucose(VL_env):
     '''
     Reports information about current policy estimate at test states. 
     '''
-    REPORT = 'Episode {} Total Reward: {}\nHypoglycemic policy: {} Hyperglycemic policy: {}\nbetaHat: {}'
-    print(REPORT.format(self.episode, np.sum(self.R[-self.episodeSteps:]), self.pi(self.piFeatures(Glucose.HYPOGLYCEMIC), betaHat), 
+    REPORT = 'Episode {} Eps: {} Total Reward: {}\nHypoglycemic policy: {} Hyperglycemic policy: {}\nbetaHat: {}'
+    print(REPORT.format(self.episode, self.epsilon, np.sum(self.R[-self.episodeSteps:]), self.pi(self.piFeatures(Glucose.HYPOGLYCEMIC), betaHat), 
           self.pi(self.piFeatures(Glucose.HYPERGLYCEMIC), betaHat), betaHat))
           
   def update_schedule(self):
