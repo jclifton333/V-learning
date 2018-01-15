@@ -19,9 +19,9 @@ import numpy as np
 from VLopt import VLopt
 import scipy.linalg as la 
 
-def thetaPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, thetaTilde):  
+def compute_EE_sums(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts):
   '''
-  Estimates theta associated with policy indexed by beta.    
+  Computes sums used in solving the V-function estimating equation.  
   
   Parameters
   ----------
@@ -36,11 +36,11 @@ def thetaPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, thetaTilde):
   F_V : V-function features at each timestep (2d array of size T x nV)
   Mu : Probabilities of observed actions under policies mu_t (1d array of size T)
   btsWts : 1d array of weights for terms in V-function estimating equation 
-  thetaTilde : 1d vector to shrink towards in V-function estimation 
 
   Returns
   -------
-  Estimate of theta 
+  sumM : sum_t (importance weight)_t * outer(fV_t, gamma * fV_tp1 - fV_t) (nV x nV-size array) 
+  sumRS : sum_t (importance weight)_t * r_t * fV_t ) (nV-size array)
   '''
   nA, nPi = A.shape[1], F_Pi.shape[1]
   beta = beta.reshape(nA, nPi)
@@ -48,7 +48,67 @@ def thetaPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, thetaTilde):
   w = np.array([btsWts[i] * float(policyProbs(A[i,:], F_Pi[i,:], beta, eps=eps)) / Mu[i] for i in range(T)])
   sumRS = np.sum(np.multiply(F_V[:-1,:], np.multiply(w, R).reshape(T,1)), axis=0)
   sumM  = np.sum(np.multiply(M, w.reshape(T, 1, 1)), axis=0)
-  LU = la.lu_factor(sumM + 0.01*np.eye(p)) 
+  return sumM, sumRS
+
+def thetaPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, thetaTilde):  
+  '''
+  Estimates theta associated with policy indexed by beta.    
+  
+  Parameters
+  ----------
+  beta : policy parameters (1d array)
+  policyProbs : function returning probability of observed action at given state,
+                under policy with parameter beta
+  eps : epsilon used in epsilon-greedy
+  M : array of matrices outer(psi_t, psi_t) - gamma*outer(psi_t, psi_tp1) (3d array of size T x nV x nV)
+  A : (T x nA)-size array of onehot action encodings
+  R : array of rewards (1d array)
+  F_Pi : Policy features at each timestep (2d array of size T x nPi)
+  F_V : V-function features at each timestep (2d array of size T x nV)
+  Mu : Probabilities of observed actions under policies mu_t (1d array of size T)
+  btsWts : 1d array of weights for terms in V-function estimating equation 
+  thetaTilde : 1d vector to shrink towards in V-function estimation 
+
+  Returns
+  -------
+  Estimate of theta 
+  '''
+  sumM, sumRS = compute_EE_sums(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts)
+  nV = len(sumRS)
+  LU = la.lu_factor(sumM + 0.01*np.eye(nV)) 
+  return la.lu_solve(LU, thetaTilde + sumRS)
+  
+def thetaPiMulti(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, thetaTilde):
+  '''
+  Estimates theta associated with policy indexed by beta, where there are multiple
+  (nRep) replicates of a trajectory. 
+  
+  beta : policy parameters (1d array)
+  policyProbs : function returning probability of observed action at given state,
+                under policy with parameter beta
+  eps : epsilon used in epsilon-greedy
+  M : array of matrices outer(psi_t, psi_t) - gamma*outer(psi_t, psi_tp1) (4d array of size nRep x T x nV x nV)
+  A : (nRep x T x nA)-size array of onehot action encodings
+  R : array of rewards (nRep x T-size array)
+  F_Pi : Policy features at each timestep (3d array of size nRep x T x nPi)
+  F_V : V-function features at each timestep (3d array of size nRep x T x nV)
+  Mu : Probabilities of observed actions under policies mu_t (2d array of size nRep x T)
+  btsWts : (nRep x T)-size array of weights for terms in V-function estimating equation 
+  thetaTilde : 1d vector to shrink towards in V-function estimation 
+
+  Returns
+  -------
+  Estimate of theta 
+  '''
+  nRep = A.shape[0]
+  nV = F_V.shape[2]
+  sumRS = np.zeros(nV) 
+  sumM = np.zeros((nV, nV))
+  for rep in nRep: 
+    sumM_rep, sumRS_rep = compute_EE_sums(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts[rep,:])
+    sumM += sumM_rep 
+    sumRS += sumRS_rep 
+  LU = la.lu_factor(sumM + 0.01*np.eye(nV)) 
   return la.lu_solve(LU, thetaTilde + sumRS)
   
 def vPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, thetaTilde, refDist=None):

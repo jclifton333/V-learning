@@ -57,5 +57,24 @@ def total_policy_gradient(beta, A, R, F_Pi, F_V, thetaHat, gamma, epsilon):
     gradient += grad*advantage
   return gradient    
 
+def total_policy_gradient_multi(beta, A, R, F_Pi, F_V, thetaHat, gamma, epsilon):
+  '''
+  Computes policy gradient for nRep replicated trajectories. 
+  
+  :param beta: NUM_ACTION x nPi - size softmax policy parameter value 
+  :param A: nRep x NUM_TIMESTEPS x NUM_ACTION - size array of actions 
+  :param R: nRep x NUM_TIMESTEPS - size array of rewards
+  :param F_Pi: nRep x NUM_TIMESTEPS + 1 x nPi - size array of state policy function features 
+  :param F_V: nRep x NUM_TIMESTEPS + 1 x nV - size array of state v-function features 
+  :param thetaHat: nV - size array of estimate v-function parameters  
+  :param gamma: discount 
+  :return gradient: NUM_ACTION x nPi - size policy gradient
+  '''
+  gradient = np.zeros(beta.shape)
+  nRep = A.shape[0]
+  for rep in range(nRep):
+    gradient += total_policy_gradient(beta, A[rep,:], R[rep,:], F_Pi[rep,:], F_V[rep,:], thetaHat, gamma, epsilon)
+  return gradient / nRep
+  
   
   

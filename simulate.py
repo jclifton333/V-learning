@@ -7,7 +7,7 @@ sys.path.append('src/utils')
 sys.path.append('src/estimation')
 
 #Environment imports 
-VALID_ENVIRONMENT_NAMES = ['SimpleMDP', 'Gridworld', 'RandomFiniteMDP', 'Glucose'] 
+VALID_ENVIRONMENT_NAMES = ['SimpleMDP', 'Gridworld', 'RandomFiniteMDP', 'Glucose', 'GlucoseMulti'] 
 GYM_IMPORT_ERROR_MESSAGE = "Couldn't import gym module.  You won't be able to use the Cartpole environment."
 PLE_IMPORT_ERROR_MESSAGE = "Couldn't import ple module.  You won't be able to use the Flappy environment."
 
@@ -26,7 +26,7 @@ except ImportError:
   print(GYM_IMPORT_ERROR_MESSAGE)  
   
 from FiniteMDP import RandomFiniteMDP, SimpleMDP, Gridworld
-from Glucose import Glucose
+from Glucose import Glucose, GlucoseMulti
 from VL import betaOpt, thetaPi
 from policy_utils import pi, policyProbs
 from policy_gradient import total_policy_gradient, log_policy_gradient, advantage_estimate 
@@ -55,6 +55,7 @@ DISPLAY_SCREEN = False
 
 #Glucose
 MAX_T_GLUCOSE = 100
+NUM_PATIENT = 20 #For GlucoseMulti
 
 class data(object):
   '''
@@ -125,6 +126,8 @@ def getEnvironment(envName, gamma, epsilon, fixUpTo):
     return Gridworld(MAX_T_FINITE, gamma, epsilon, fixUpTo = fixUpTo) 
   elif envName == 'Glucose':
     return Glucose(MAX_T_GLUCOSE, gamma, epsilon, fixUpTo=fixUpTo)
+  elif envName == 'GlucoseMulti':
+    return GlucoseMulti(MAX_T_GLUCOSE, NUM_PATIENT, gamma=gamma, epsilon=epsilon, fixUpTo=fixUpTo)
   else: 
     raise ValueError('Incorrect environment name.  Choose name in {}.'.format(VALID_ENVIRONMENT_NAMES))
     
@@ -148,11 +151,25 @@ def simulate(bts, epsilon, initializer, label, randomShrink, envName, gamma, nEp
   '''
 
   #Initialize  
-  #TODO: return betaHat, tHat from environment? 
+  #ToDo: return betaHat, tHat from environment? 
   env = getEnvironment(envName, gamma, epsilon, fixUpTo)
   betaHat = np.zeros((env.NUM_ACTION, env.nPi))
   thetaHat = np.zeros(env.nV)  
   save_data = data(envName, fixUpTo, initializer, label, epsilon, bts, write = write)
+  
+  #ToDo: Make this an environment method 
+  def get_random_weights(): 
+    if randomShrink: 
+      thetaTilde = np.random.normal(size=env.nV)
+    else:
+      thetaTilde = np.zeros(env.nV)
+    if not bts or env.F_V.shape[0] < 2: 
+      btsWts = np.ones((NUM_PATIENT, F_V.shape[0]-1))
+    else:
+      btsWts = np.random.exponential(size=(NUM_PATIENT,F_V.shape[0]-1))
+    if envName != 'GlucoseMulti':
+      btsWts = btsWts[0,:]
+    return thetaTilde, btsWts    
       
   #Run sim
   for ep in range(nEp): 
@@ -167,8 +184,9 @@ def simulate(bts, epsilon, initializer, label, randomShrink, envName, gamma, nEp
       if not done:
         if actorCritic: 
           if env.update_schedule(): 
-            thetaHat = thetaPi(betaHat, policyProbs, epsilon, M, A, R, F_Pi, F_V, Mu, btsWts = np.ones(F_V.shape[0]-1), thetaTilde = np.zeros(len(thetaHat)))
-          betaHatGrad = total_policy_gradient(betaHat, A, R, F_Pi, F_V, thetaHat, env.gamma, env.epsilon)
+            thetaTilde, btsWts = get_random_weights()
+            thetaHat = env.thetaPi(betaHat, policyProbs, epsilon, M, A, R, F_Pi, F_V, Mu, btsWts = btsWts, thetaTilde = thetaTilde)
+          betaHatGrad = env.total_policy_gradient(betaHat, A, R, F_Pi, F_V, thetaHat, env.gamma, env.epsilon)
           betaHat += 0.01/np.sqrt(env.episode+1) * betaHatGrad
         else:
           if env.update_schedule(): 

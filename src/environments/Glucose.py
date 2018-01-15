@@ -1,3 +1,9 @@
+import sys
+sys.path.append('../utils')
+sys.path.append('../estimation')
+
+from policy_gradient import total_policy_gradient_multi
+from VL import thetaPiMulti
 from VL_env import VL_env
 import numpy as np
 import pdb
@@ -192,4 +198,93 @@ class Glucose(VL_env):
           
   def update_schedule(self):
     return self.episodeSteps % 5 == 0
+
+class GlucoseMulti(object):
+  thetaPi = thetaPiMulti 
+  total_policy_gradient = total_policy_gradient_multi  
+  NUM_ACTION = Glucose.NUM_ACTION
+  
+  def __init__(self, maxT, nRep, gamma, epsilon, fixUpTo, vFeatureArgs = {'featureChoice':'intercept'}, piFeatureArgs = {'featureChoice':'intercept'}):
+    '''
+    Constructs multiple glucose environments.  
+    
+    Parameters
+    ----------
+    maxT : maximum number of steps per episode 
+    nRep : number of replicates
+    gamma : discount factor
+    epsilon : for epsilon-greedy 
+    fixUpTo : integer for max number of observations to include in reference distribution for v-learning 
+    vFeatureArgs :  Dictionary {'featureChoice':featureChoice}, where featureChoice is a string in ['gRBF', 'intercept', 'identity'].
+                   If featureChoice == 'gRBF', then items 'gridpoints' and 'sigmaSq' must also be provided. 
+    piFeatureArgs : '' 
+    '''
+    self.nRep = nRep
+    self.EnvList = [Glucose(maxT, gamma, epsilon, fixUpTo, vFeatureArgs, piFeatureArgs) for rep in range(nRep)]
+    self.nPi = self.EnvList[0].nPi 
+    self.nV = self.EnvList[0].nV
+    
+  def reset(self):
+    '''
+    Reset each environment in EnvList.
+    :return: List of state policy feature arrays for each environment.
+    '''
+    return np.array([env.reset() for env in self.EnvList])
      
+  def _get_action(self, fPiArray, betaHat):
+    '''
+    Calls _get_action for each environment on respective rows of fPiArray.  
+    
+    :param fPiArray: nRep x Glucose.nPi - size array of policy features 
+    :param betaHat: Glucose.NUM_ACTION x Glucose.nPi-size array of policy params
+    :return actionArray: nRep x Glucose.NUM_ACTION - size array of action vectors 
+    '''
+    actionArray = [] 
+    for i in range(self.nRep): 
+      env = self.EnvList[i]
+      action = env._get_action(fPiArray[i,:], betaHat)
+      actionArray.append(action)
+    return np.array(actionArray)    
+      
+  def step(self, actionArray, betaHat):
+    '''
+    Take a step in each environment in EnvList. 
+    
+    :param actionArray: self.nRep x Glucose.NUM_ACTION - size array of dummy-encodings of actions for each environment 
+    :param betaHat: Glucose.nPi - size array of policy parameters 
+    :return: Lists of all arrays returned by each replicate's env.step() 
+    '''
+    fPi_List = [] 
+    F_V_List = [] 
+    F_Pi_List = [] 
+    A_List = [] 
+    R_List = [] 
+    Mu_List= []
+    M_List = [] 
+
+    for i in range(self.nRep):
+      action = actionArray[i]    
+      env = self.EnvList[i]
+      fPi, F_V, F_Pi, A, R, Mu, M, refDist, done, reward = env.step(action, betaHat) 
+      fPi_List.append(fPi)
+      F_V_List.append(F_V)
+      F_Pi_List.append(F_Pi) 
+      A_List.append(A)
+      R_List.append(R)
+      Mu_List.append(Mu)
+      M_List.append(M)
+    
+    return fPi_List, F_V_List, F_Pi_List, A_List, R_List, Mu_List, M_List
+    
+  def update_schedule(self):
+    return self.EnvList[0].update_schedule()
+ 
+  def report(self, betaHat):
+    '''
+    Reports information about current policy estimate at test states. 
+    '''
+    REPORT = 'Episode {} Eps: {} Average Total Reward: {}\nHypoglycemic policy: {} Hyperglycemic policy: {}\nbetaHat: {}'
+    print(REPORT.format(self.episode, self.epsilon, np.mean([np.sum(self.R[i,-self.episodeSteps:]) for i in range(self.nRep)]), self.pi(self.piFeatures(Glucose.HYPOGLYCEMIC), betaHat), 
+          self.pi(self.piFeatures(Glucose.HYPERGLYCEMIC), betaHat), betaHat))
+  
+      

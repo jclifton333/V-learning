@@ -17,7 +17,8 @@ from feature_utils import getBasis, gRBF, identity, intercept
 from policy_utils import pi, policyProbs
 from utils import onehot 
 from policy_iteration import policy_iteration, compute_vpi
-from VL import betaOpt
+from policy_gradient import total_policy_gradient
+from VL import betaOpt, thetaPi
 import pdb
 
 class VL_env(object):
@@ -25,6 +26,11 @@ class VL_env(object):
   Generic VL environment class.  Should be implemented to accommodate cartpole,
   flappy bird, and finite MDPs.  
   '''
+  betaOpt = betaOpt
+  pi = pi 
+  policyProbs = policyProbs 
+  thetaPi = thetaPi 
+  total_policy_gradient = total_policy_gradient
   
   def __init__(self, MAX_STATE, MIN_STATE, NUM_STATE, NUM_ACTION, gamma, epsilon, fixUpTo, vFeatureArgs, piFeatureArgs):
     self.MAX_STATE = MAX_STATE 
@@ -36,9 +42,6 @@ class VL_env(object):
     self.episode = -1 #Will be incremented to 0 at first reset  
     self.gamma = gamma 
     self.epsilon = epsilon
-    self.betaOpt = betaOpt
-    self.pi = pi 
-    self.policyProbs = policyProbs 
     
     #Set feature functions, feature dimensions, and betaOpt 
     self.vFeatures, self.nV   = self._set_features(vFeatureArgs)
@@ -115,7 +118,7 @@ class VL_env(object):
     :param betaHat: 2d array of policy parameters 
     :return action: onehot action 
     '''
-    aProbs = self.pi(fPi, betaHat)
+    aProbs = VL_env.pi(fPi, betaHat)
     epsProb = np.random.random() 
     action = (epsProb > self.epsilon) * np.random.choice(self.NUM_ACTION, p=aProbs) + \
              (epsProb <= self.epsilon) * np.random.choice(self.NUM_ACTION, p=np.ones(self.NUM_ACTION) / self.NUM_ACTION) 
@@ -129,7 +132,7 @@ class VL_env(object):
     self.episode += 1
     self.F_V = np.vstack((self.F_V, self.fV))
     self.F_Pi = np.vstack((self.F_Pi, self.fPi)) 
-  
+    
   @abstractmethod
   def reset(self):
     '''
