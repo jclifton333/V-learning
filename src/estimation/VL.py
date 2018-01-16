@@ -108,7 +108,7 @@ def thetaPiMulti(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, thetaTi
     sumM_rep, sumRS_rep = compute_EE_sums(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts[rep,:])
     sumM += sumM_rep 
     sumRS += sumRS_rep 
-  LU = la.lu_factor(sumM + 0.01*np.eye(nV)) 
+  LU = la.lu_factor(sumM + 0.1*np.eye(nV)) 
   return la.lu_solve(LU, thetaTilde + sumRS)
   
 def vPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, thetaTilde, refDist=None):

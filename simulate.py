@@ -131,7 +131,7 @@ def getEnvironment(envName, gamma, epsilon, fixUpTo):
   else: 
     raise ValueError('Incorrect environment name.  Choose name in {}.'.format(VALID_ENVIRONMENT_NAMES))
     
-def simulate(bts, epsilon, initializer, label, randomShrink, envName, gamma, nEp, fixUpTo, actorCritic, write = False):
+def simulate(bts, epsilon, initializer, label, randomShrink, envName, gamma, nEp, fixUpTo, actorCritic, epsDecay, write = False):
   '''
   Runs simulation with V-learning.
   
@@ -160,7 +160,7 @@ def simulate(bts, epsilon, initializer, label, randomShrink, envName, gamma, nEp
   #ToDo: Make this an environment method 
   def get_random_weights(): 
     if randomShrink: 
-      thetaTilde = np.random.normal(size=env.nV)
+      thetaTilde = np.random.normal(size=env.nV, scale=0.001)
     else:
       thetaTilde = np.zeros(env.nV)
     if not bts or env.F_V.shape[0] < 2: 
@@ -181,21 +181,24 @@ def simulate(bts, epsilon, initializer, label, randomShrink, envName, gamma, nEp
       a = env._get_action(fPi, betaHat)
       fPi, F_V, F_Pi, A, R, Mu, M, refDist, done, reward = env.step(a, betaHat)
       score += R[-1]
+      if epsDecay:
+        env.epsilon = 1/env.totalSteps
       if not done:
         if actorCritic: 
           if env.update_schedule(): 
             thetaTilde, btsWts = get_random_weights()
-            thetaHat = env.thetaPi(betaHat, policyProbs, epsilon, M, A, R, F_Pi, F_V, Mu, btsWts = btsWts, thetaTilde = thetaTilde)
+            thetaHat = env.thetaPi(betaHat, policyProbs, env.epsilon, M, A, R, F_Pi, F_V, Mu, btsWts = btsWts, thetaTilde = thetaTilde)
           betaHatGrad = env.total_policy_gradient(betaHat, A, R, F_Pi, F_V, thetaHat, env.gamma, env.epsilon)
           betaHat += 0.01/np.sqrt(env.episode+1) * betaHatGrad
         else:
           if env.update_schedule(): 
-            res = env.betaOpt(policyProbs, epsilon, M, A, R, F_Pi, F_V, Mu, bts = bts, randomShrink = randomShrink, wStart = betaHat[1:,:], refDist = refDist, initializer = initializer)
+            res = env.betaOpt(policyProbs, env.epsilon, M, A, R, F_Pi, F_V, Mu, bts = bts, randomShrink = randomShrink, wStart = betaHat[1:,:], refDist = refDist, initializer = initializer)
             betaHat, thetaHat = res['betaHat'], res['thetaHat']
     #t1 = time.time()
+    print('thetaHat: {}'.format(thetaHat))
     env.report(betaHat)
     save_data.update(ep, score, betaHat, thetaHat)      
-  return 
+  return M, A, R, F_Pi, F_V, Mu, refDist
   
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
@@ -211,6 +214,7 @@ if __name__ == "__main__":
   parser.add_argument('--write', type=str2bool, help="Boolean for writing results to file.")
   parser.add_argument('--fixUpTo', type=intOrNone, help="Integer for number of observations to include in reference distribution, or None")
   parser.add_argument('--actorCritic', type=str2bool, help="Boolean for using actor-critic instead of regular v-learning.")
+  parser.add_argument('--epsDecay', type=str2bool, help="Boolean for using epsilon-greedy with epsilon=1/timesteps.")
   args = parser.parse_args()
     
   np.random.seed(args.randomSeed)
