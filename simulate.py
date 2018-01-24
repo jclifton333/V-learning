@@ -7,7 +7,7 @@ sys.path.append('src/utils')
 sys.path.append('src/estimation')
 
 #Environment imports 
-VALID_ENVIRONMENT_NAMES = ['SimpleMDP', 'Gridworld', 'RandomFiniteMDP', 'Glucose', 'GlucoseMulti'] 
+VALID_ENVIRONMENT_NAMES = ['SimpleMDP', 'Gridworld', 'RandomFiniteMDP', 'Glucose', 'Chain'] 
 GYM_IMPORT_ERROR_MESSAGE = "Couldn't import gym module.  You won't be able to use the Cartpole environment."
 PLE_IMPORT_ERROR_MESSAGE = "Couldn't import ple module.  You won't be able to use the Flappy environment."
 
@@ -25,8 +25,8 @@ try:
 except ImportError:
   print(GYM_IMPORT_ERROR_MESSAGE)  
   
-from FiniteMDP import RandomFiniteMDP, SimpleMDP, Gridworld
-from Glucose import Glucose, GlucoseMulti
+from FiniteMDP import RandomFiniteMDP, SimpleMDP, Gridworld, Chain
+from Glucose import Glucose
 from VL import betaOpt, thetaPi
 from policy_utils import pi, policyProbs
 from policy_gradient import total_policy_gradient, log_policy_gradient, advantage_estimate 
@@ -49,6 +49,7 @@ DEFAULT_REWARD = False
 NUM_RANDOM_FINITE_STATE = 3 #Number of states if RandomFiniteMDP is chosen
 NUM_RANDOM_FINITE_ACTION = 2
 MAX_T_FINITE = 50 #Max number of timesteps per episode if a FiniteMDP is chosen
+N_CHAIN = 4 #Number of states in Chain MDP
 
 #Flappy Bird
 DISPLAY_SCREEN = False
@@ -73,7 +74,7 @@ class data(object):
     self.epsilon = epsilon 
     self.bts = bts 
     self.initializer = initializer 
-    self.description = 'eps-{}-bts-{}-fix-{}-initializer-{}'.format(epsilon, bts, fixUpTo, initializer)
+    self.description = 'eps-{}-bts-{}-fix-{}-initializer-{}-Chainfeatures-rbf'.format(epsilon, bts, fixUpTo, initializer)
     self.label = label
     self.episode = []
     self.score = []
@@ -126,8 +127,8 @@ def getEnvironment(envName, gamma, epsilon, fixUpTo):
     return Gridworld(MAX_T_FINITE, gamma, epsilon, fixUpTo = fixUpTo) 
   elif envName == 'Glucose':
     return Glucose(MAX_T_GLUCOSE, gamma, epsilon, fixUpTo=fixUpTo)
-  elif envName == 'GlucoseMulti':
-    return GlucoseMulti(MAX_T_GLUCOSE, NUM_PATIENT, gamma=gamma, epsilon=epsilon, fixUpTo=fixUpTo)
+  elif envName == 'Chain':
+    return Chain(N_CHAIN, epsilon, fixUpTo=fixUpTo)
   else: 
     raise ValueError('Incorrect environment name.  Choose name in {}.'.format(VALID_ENVIRONMENT_NAMES))
     
@@ -153,7 +154,7 @@ def simulate(bts, epsilon, initializer, label, randomShrink, envName, gamma, nEp
   #Initialize  
   #ToDo: return betaHat, tHat from environment? 
   env = getEnvironment(envName, gamma, epsilon, fixUpTo)
-  betaHat = np.zeros((env.NUM_ACTION, env.nPi))
+  betaHat = np.random.normal(size=(env.NUM_ACTION, env.nPi))
   thetaHat = np.zeros(env.nV)  
   save_data = data(envName, fixUpTo, initializer, label, epsilon, bts, write = write)
   
@@ -167,8 +168,6 @@ def simulate(bts, epsilon, initializer, label, randomShrink, envName, gamma, nEp
       btsWts = np.ones((NUM_PATIENT, F_V.shape[0]-1))
     else:
       btsWts = np.random.exponential(size=(NUM_PATIENT,F_V.shape[0]-1))
-    if envName != 'GlucoseMulti':
-      btsWts = btsWts[0,:]
     return thetaTilde, btsWts    
       
   #Run sim
@@ -177,6 +176,7 @@ def simulate(bts, epsilon, initializer, label, randomShrink, envName, gamma, nEp
     done = False 
     score = 0 
     #t0 = time.time()
+    print('betaHat: {}'.format(betaHat))
     while not done: 
       a = env._get_action(fPi, betaHat)
       fPi, F_V, F_Pi, A, R, Mu, M, refDist, done, reward = env.step(a, betaHat)
@@ -194,9 +194,9 @@ def simulate(bts, epsilon, initializer, label, randomShrink, envName, gamma, nEp
           if env.update_schedule(): 
             res = env.betaOpt(policyProbs, env.epsilon, M, A, R, F_Pi, F_V, Mu, bts = bts, randomShrink = randomShrink, wStart = betaHat[1:,:], refDist = refDist, initializer = initializer)
             betaHat, thetaHat = res['betaHat'], res['thetaHat']
+      print('episode: {} action: {} state: {} reward: {}'.format(env.episode, a, env.s, R[-1]))
     #t1 = time.time()
-    print('thetaHat: {}'.format(thetaHat))
-    env.report(betaHat)
+    #env.report(betaHat)
     save_data.update(ep, score, betaHat, thetaHat)      
   return M, A, R, F_Pi, F_V, Mu, refDist
   
@@ -221,7 +221,7 @@ if __name__ == "__main__":
   
   pool = pl.ThreadPool(args.nRep)
   simulate_partial = partial(simulate, randomShrink = args.randomShrink, envName = args.envName, gamma = args.gamma, 
-                     nEp = args.nEp, fixUpTo = args.fixUpTo, actorCritic = args.actorCritic, write = args.write) 
+                     nEp = args.nEp, fixUpTo = args.fixUpTo, actorCritic = args.actorCritic, epsDecay = args.epsDecay, write = args.write) 
   argList = [(args.bts, args.epsilon, args.initializer, label) for label in range(args.nRep)]
   pool.starmap(simulate_partial, argList) 
   pool.close()

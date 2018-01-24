@@ -43,7 +43,6 @@ class VL_env(object):
     self.policyProbs = policyProbs 
     self.thetaPi = thetaPi 
     self.total_policy_gradient = total_policy_gradient
-
     
     #Set feature functions, feature dimensions, and betaOpt 
     self.vFeatures, self.nV   = self._set_features(vFeatureArgs)

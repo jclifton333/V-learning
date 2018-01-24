@@ -286,3 +286,56 @@ class Gridworld(FiniteMDP):
     independent of policy).
     '''
     return self.s in self.PATH
+
+class Chain(FiniteMDP):
+  '''
+  Implements chain MDP described in http://proceedings.mlr.press/v48/osband16.pdf.
+  '''
+  NUM_ACTION = 2  
+  
+  def __init__(self, N, epsilon, fixUpTo = None):
+    '''
+    :param N: length of chain (number of states)
+    
+    Using radial basis features instead of tabular. 
+    '''
+    
+    transitionMatrices = np.zeros((Chain.NUM_ACTION, N, N))
+    rewardMatrices = np.zeros((Chain.NUM_ACTION, N, N))
+    
+    #Fill transition and reward matrices 
+    #Action 0 = Left 
+    transitionMatrices[0, N-1, N-1] = 1
+    for n in range(N-1): 
+      transitionMatrices[0, n, n+1] = 1 
+    #Action 1 = Right
+    transitionMatrices[1, 0, 1] = 1 - 1/N 
+    transitionMatrices[1, 0, 0] = 1/N 
+    transitionMatrices[1, N-1, N-1] = 1 - 1/N 
+    transitionMatrices[1, N-1, N-2] = 1/N 
+    for n in range(1, N-1):
+      transitionMatrices[1, n, n+1] = 1 - 1/N 
+      transitionMatrices[1, n, n-1] = 1/N 
+    #Only nonzero reward is at state N 
+    for n in range(N): 
+      rewardMatrices[0, n, N-1] = 1 
+      rewardMatrices[1, n, N-1] = 1      
+    FiniteMDP.__init__(self, N, 0.95, epsilon, transitionMatrices, rewardMatrices, [N-1])
+    
+    #Set RBF features, using odd states as basis points 
+    basis_states = [s for s in range(N) if (s + 1) % 2 == 0] 
+    onehot_to_int = lambda vec: np.flatnonzero(vec)[0]
+    self.vFeatures = lambda s_vec: np.array([np.exp(-np.abs(onehot_to_int(s_vec) - s0)) for s0 in basis_states])
+    self.piFeatures = self.vFeatures
+    self.nV = self.nPi = int(np.floor(N / 2))
+    
+    #Reset data arrays because we overwrote default feature functions 
+    self.F_V  = np.zeros((0, self.nV))          #V-function features
+    self.F_Pi = np.zeros((0, self.nPi))         #Policy features
+    self.M    = np.zeros((0, self.nV, self.nV)) #Outer products (for computing thetaHat)
+    
+  def update_schedule(self):
+    return self.episodeSteps % (np.floor(self.NUM_STATE /2)) == 0
+
+  
+  

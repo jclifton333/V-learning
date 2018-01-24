@@ -66,11 +66,10 @@ def VLopt(objective, x0, initializer=None):
   nA, nPi = x0.shape
   x0 = x0.ravel() 
   if initializer == 'basinhop': 
-    x0 = optim.basinhopping(objective, x0=x0, niter=100).x
+    x0 = optim.basinhopping(objective, x0=np.zeros(len(x0)), niter=3000).x
     res = optim.minimize(objective, x0=x0, method='L-BFGS-B')
   elif initializer == 'multistart': 
     random_starts = [x0] + [np.random.multivariate_normal(mean=np.zeros(nPi*nA),cov=100*np.eye(nPi*nA)) for start in range(NUM_MULTISTART-1)]
-    #results = mp_multistart(random_starts, objective)
     results = [optim.minimize(objective, x0=random_start, method='L-BFGS-B') for random_start in random_starts]
     func_vals = [r.fun for r in results]
     res = results[np.argmin(func_vals)]

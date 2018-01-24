@@ -176,7 +176,7 @@ def betaOpt(policyProbs, eps, M, A, R, F_Pi, F_V, Mu, wStart=None, refDist=None,
   nA = A.shape[1]
   if F_V.shape[0] < nV: 
     objective = lambda x: None 
-    return {'betaHat':np.zeros((nA, nPi)), 'thetaHat':np.zeros(nV), 'objective':objective}
+    return {'betaHat':np.random.normal(size=(nA, nPi)), 'thetaHat':np.zeros(nV), 'objective':objective}
   else:    
     if bts: 
       btsWts = np.random.exponential(size = F_V.shape[0] - 1) 

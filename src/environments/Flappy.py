@@ -3,7 +3,7 @@ PLE_IMPORT_ERROR_MESSAGE = "Couldn't import gym module.  You won't be able to us
 try: 
   from ple.games.flappybird import FlappyBird
   from ple import PLE
-except ModuleNotFoundError or ImportError:
+except ImportError:
   print(GYM_IMPORT_ERROR_MESSAGE)
 from VL_env import VL_env 
 import numpy as np
@@ -100,3 +100,6 @@ class Flappy(VL_env):
     Returns boolean for whether it's time to re-estimate policy parameters.
     '''
     return True
+    
+  def report(self):
+    pass
