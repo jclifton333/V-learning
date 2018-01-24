@@ -8,28 +8,36 @@ This file contains functions that return actions and probabilities associated wi
 """
 
 import numpy as np
+from utils import onehot
 
-def pi(s, beta): 
+
+def pi(s, beta, hardmax): 
   '''
   Return array of action probabilities corresponding to rows of beta. 
   :param s: state array at which to compute policy 
   :param beta: nA x nS array of policy parameters, rows corresponding to each action 
+  :param hardmax: boolean for using hardmax instead of softmax
   :return: array of probabilities of each action 
   '''
   dots = np.array([np.dot(s, b) for b in beta])
-  max_ = np.max(dots) 
-  exp_ = np.exp(dots - max_)  #Subtract this in exponent to avoid overflow
-  return exp_ / np.sum(exp_) 
+  if hardmax:
+    argmax_ = np.argmax(dots) 
+    return onehot(argmax_, beta.shape[0])
+  else:
+    max_ = np.max(dots) 
+    exp_ = np.exp(dots - max_)  #Subtract this in exponent to avoid overflow
+    return exp_ / np.sum(exp_) 
   
-def policyProbs(a, s, beta, eps = 0.0): 
+def policyProbs(a, s, beta, eps, hardmax): 
   '''
   :param a: integer or onehot encoding of action 
   :param s: state array 
   :param beta: nA x nS array of policy parameters 
   :param eps: epsilon used in epsilon-greedy 
+  :param hardmax: boolean for using hardmax instead of softmax
   :return: probability of action a in state s under policy with parameters beta. 
   '''
-  p_list = pi(s, beta) 
+  p_list = pi(s, beta, hardmax) 
   nA = beta.shape[0]
   if isinstance(a, int):
     a_vec = np.zeros(nA)
@@ -56,8 +64,7 @@ def piBin(s, beta):
   
   dot = np.dot(s, beta)
   max_ = np.max((dot,0)) #Subtract this in exponent to avoid overflow
-  return np.exp(dot - max_) / (np.exp(-max_) + np.exp(dot - max_))
- 
+  return np.exp(dot - max_) / (np.exp(-max_) + np.exp(dot - max_)) 
   
 def policyProbsBin(a, s, beta, eps = 0.0):
   '''

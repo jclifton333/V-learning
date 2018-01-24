@@ -18,16 +18,23 @@ from policy_utils import pi, policyProbs
 from utils import onehot 
 from policy_iteration import policy_iteration, compute_vpi
 from policy_gradient import total_policy_gradient
-from VL import betaOpt, thetaPi
+from VL import betaOptVL, thetaPiVL
+from QL import betaOptQL, thetaPiQL
 import pdb
 
-class VL_env(object):
+class RL_env(object):
   '''
-  Generic VL environment class.  Should be implemented to accommodate cartpole,
+  Generic RL environment class.  Should be implemented to accommodate cartpole,
   flappy bird, and finite MDPs.  
   '''
   
-  def __init__(self, MAX_STATE, MIN_STATE, NUM_STATE, NUM_ACTION, gamma, epsilon, fixUpTo, vFeatureArgs, piFeatureArgs):
+  def __init__(self, method, hardmax, MAX_STATE, MIN_STATE, NUM_STATE, NUM_ACTION, gamma, epsilon, fixUpTo, vFeatureArgs, piFeatureArgs):
+    '''
+    :param method: string in ['VL', 'QL']
+    :param hardmax: boolean for using hard or softmax policy
+    '''
+    self.method = method
+    self.hardmax = hardmax
     self.MAX_STATE = MAX_STATE 
     self.MIN_STATE = MIN_STATE 
     self.NUM_STATE = NUM_STATE 
@@ -38,23 +45,30 @@ class VL_env(object):
     self.gamma = gamma 
     self.epsilon = epsilon
     
-    self.betaOpt = betaOpt
-    self.pi = pi 
-    self.policyProbs = policyProbs 
-    self.thetaPi = thetaPi 
-    self.total_policy_gradient = total_policy_gradient
+    #Set policy functions 
+    self.pi = lambda s, beta: pi(s, beta, self.hardmax) 
+    self.policyProbs = lambda s, beta: policyProbs(a, s, beta, self.epsilon, self.hardmax)
+    
+    #Set parameter estimation functions
+    if self.method == 'VL':
+      self.betaOpt = betaOptVL 
+      self.total_policy_gradient = total_policy_gradient
+    elif self.method == 'QL':
+      self.betaOpt = betaOptQL   
     
     #Set feature functions, feature dimensions, and betaOpt 
     self.vFeatures, self.nV   = self._set_features(vFeatureArgs)
     self.piFeatures, self.nPi = self._set_features(piFeatureArgs)
-    
+    if self.method == 'QL': 
+      self.nV = self.nV * self.NUM_ACTION #QL state space is of dimension nV * NUM_ACTION
+      
     #Initialize data arrays
-    self.F_V  = np.zeros((0, self.nV))          #V-function features
-    self.F_Pi = np.zeros((0, self.nPi))         #Policy features
-    self.A    = np.zeros((0, self.NUM_ACTION))  #Actions
-    self.R    = np.zeros(0)                     #Rewards
-    self.Mu   = np.zeros(0)                     #Action probabilities
-    self.M    = np.zeros((0, self.nV, self.nV)) #Outer products (for computing thetaHat)
+    self.F_V  = np.zeros((0, self.nV))                   #value function (V or Q) features
+    self.F_Pi = np.zeros((0, self.nPi))                  #Policy features (in QL, S rather than SxA used to compute Qmax)
+    self.A    = np.zeros((0, self.NUM_ACTION))           #Actions
+    self.R    = np.zeros(0)                              #Rewards
+    self.Mu   = np.zeros(0)                              #Action probabilities
+    self.M    = np.zeros((0, self.nV, self.nV))          #Outer products (for computing thetaHat)  
     
   def _set_features(self, featureArgs):
     '''

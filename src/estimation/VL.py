@@ -19,7 +19,7 @@ import numpy as np
 from VLopt import VLopt
 import scipy.linalg as la 
 
-def compute_EE_sums(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts):
+def compute_EE_sums_VL(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts):
   '''
   Computes sums used in solving the V-function estimating equation.  
   
@@ -73,7 +73,7 @@ def thetaPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, thetaTilde):
   -------
   Estimate of theta 
   '''
-  sumM, sumRS = compute_EE_sums(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts)
+  sumM, sumRS = compute_EE_sums_VL(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts)
   nV = len(sumRS)
   LU = la.lu_factor(sumM + 0.01*np.eye(nV)) 
   return la.lu_solve(LU, thetaTilde + sumRS)
@@ -105,7 +105,7 @@ def thetaPiMulti(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, thetaTi
   sumRS = np.zeros(nV) 
   sumM = np.zeros((nV, nV))
   for rep in nRep: 
-    sumM_rep, sumRS_rep = compute_EE_sums(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts[rep,:])
+    sumM_rep, sumRS_rep = compute_EE_sums_VL(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts[rep,:])
     sumM += sumM_rep 
     sumRS += sumRS_rep 
   LU = la.lu_factor(sumM + 0.1*np.eye(nV)) 
@@ -144,7 +144,7 @@ def vPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, thetaTilde, refD
     return -np.mean(np.dot(refDist, theta))
 
       
-def betaOpt(policyProbs, eps, M, A, R, F_Pi, F_V, Mu, wStart=None, refDist=None, bts=True, randomShrink=True, initializer=None):
+def betaOptVL(policyProbs, eps, M, A, R, F_Pi, F_V, Mu, wStart=None, refDist=None, bts=True, randomShrink=True, initializer=None):
   '''
   Optimizes policy value over class of softmax policies indexed by beta. 
   
@@ -191,7 +191,7 @@ def betaOpt(policyProbs, eps, M, A, R, F_Pi, F_V, Mu, wStart=None, refDist=None,
       wStart = np.random.normal(scale=1000, size=(nA-1, nPi)) #Leave out first action, since this is all zeros 
     betaOpt = VLopt(objective, x0=wStart, initializer=initializer)
     betaOpt = np.vstack((np.zeros(betaOpt.shape[1]), betaOpt))
-    thetaOpt = thetaPi(betaOpt.ravel(), policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, thetaTilde)
+    thetaOpt = thetaPiVL(betaOpt.ravel(), policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, thetaTilde)
     return {'betaHat':betaOpt, 'thetaHat':thetaOpt, 'objective':objective}
   
   
