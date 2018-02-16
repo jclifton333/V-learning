@@ -18,8 +18,9 @@ beta refers to policy parameters.
 import numpy as np
 from VLopt import VLopt
 import scipy.linalg as la 
+import pdb
 
-def compute_EE_sums_VL(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts):
+def compute_EE_sums_VL(beta, policyProbs, eps, M_list, A_list, R_list, F_Pi_list, F_V_list, Mu_list, bts):
   '''
   Computes sums used in solving the V-function estimating equation.  
   
@@ -42,15 +43,23 @@ def compute_EE_sums_VL(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts):
   sumM : sum_t (importance weight)_t * outer(fV_t, gamma * fV_tp1 - fV_t) (nV x nV-size array) 
   sumRS : sum_t (importance weight)_t * r_t * fV_t ) (nV-size array)
   '''
-  nA, nPi = A.shape[1], F_Pi.shape[1]
+  nA, nPi = A_list[0].shape[1], F_Pi_list[0].shape[1]
   beta = beta.reshape(nA, nPi)
-  T, p = F_V.shape[0] - 1, F_V.shape[1]
-  w = np.array([btsWts[i] * float(policyProbs(A[i,:], F_Pi[i,:], beta, eps=eps)) / Mu[i] for i in range(T)])
-  sumRS = np.sum(np.multiply(F_V[:-1,:], np.multiply(w, R).reshape(T,1)), axis=0)
-  sumM  = np.sum(np.multiply(M, w.reshape(T, 1, 1)), axis=0)
+  nV = F_V_list[0].shape[1]
+  sumRS = np.zeros(nV) 
+  sumM = np.zeros((nV,nV))
+  for t in range(len(A_list)):
+    episode_length = A_list[t].shape[0]
+    if bts: 
+      btsWts = np.random.exponential(size=episode_length) 
+    else:
+      btsWts = np.ones(episode_length)
+    w = np.array([btsWts[i] * float(policyProbs(A_list[t][i,:], F_Pi_list[t][i,:], beta, eps)) / Mu_list[t][i] for i in range(episode_length)])
+    sumRS += np.sum(np.multiply(F_V_list[t][:-1,:], np.multiply(w, R_list[t]).reshape(episode_length,1)), axis=0)
+    sumM += np.sum(np.multiply(M_list[t], w.reshape(episode_length, 1, 1)), axis=0)
   return sumM, sumRS
 
-def thetaPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, thetaTilde):  
+def thetaPiVL(beta, policyProbs, eps, M_list, A_list, R_list, F_Pi_list, F_V_list, Mu_list, bts, thetaTilde):  
   '''
   Estimates theta associated with policy indexed by beta.    
   
@@ -73,7 +82,7 @@ def thetaPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, thetaTilde):
   -------
   Estimate of theta 
   '''
-  sumM, sumRS = compute_EE_sums_VL(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts)
+  sumM, sumRS = compute_EE_sums_VL(beta, policyProbs, eps, M_list, A_list, R_list, F_Pi_list, F_V_list, Mu_list, bts)
   nV = len(sumRS)
   LU = la.lu_factor(sumM + 0.01*np.eye(nV)) 
   return la.lu_solve(LU, thetaTilde + sumRS)
@@ -111,7 +120,7 @@ def thetaPiMulti(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, thetaTi
   LU = la.lu_factor(sumM + 0.1*np.eye(nV)) 
   return la.lu_solve(LU, thetaTilde + sumRS)
   
-def vPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, thetaTilde, refDist=None):
+def vPi(beta, policyProbs, eps, M_list, A_list, R_list, F_Pi_list, F_V_list, Mu_list, bts, thetaTilde, refDist=None):
   '''
   Returns estimated value of policy indexed by beta.  
   
@@ -136,15 +145,15 @@ def vPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, thetaTilde, refD
   -------
   (Negative) estimated value of policy indexed by beta wrt refDist.  
   '''
-  beta = np.append(np.zeros(F_Pi.shape[1]), beta)  #add row of zeros corresponding to first action 
-  theta = thetaPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, thetaTilde)
+  beta = np.append(np.zeros(F_Pi_list[0].shape[1]), beta)  #add row of zeros corresponding to first action 
+  theta = thetaPiVL(beta, policyProbs, eps, M_list, A_list, R_list, F_Pi_list, F_V_list, Mu_list, bts, thetaTilde)
   if refDist is None:
-    return -np.mean(np.dot(F_V, theta))
+    return -np.mean(np.dot(np.vstack(F_V_list), theta))
   else: 
     return -np.mean(np.dot(refDist, theta))
 
       
-def betaOptVL(policyProbs, eps, M, A, R, F_Pi, F_V, Mu, wStart=None, refDist=None, bts=True, randomShrink=True, initializer=None):
+def betaOptVL(policyProbs, eps, M_list, A_list, R_list, F_Pi_list, F_V_list, Mu_list, wStart=None, refDist=None, bts=True, randomShrink=True, initializer=None):
   '''
   Optimizes policy value over class of softmax policies indexed by beta. 
   
@@ -171,27 +180,23 @@ def betaOptVL(policyProbs, eps, M, A, R, F_Pi, F_V, Mu, wStart=None, refDist=Non
   -------
   Dictionary {'betaHat':estimate of beta, 'thetaHat':estimate of theta, 'objective':objective function (of policy parameters)}
   '''
-  nPi = F_Pi.shape[1]
-  nV = F_V.shape[1]
-  nA = A.shape[1]
-  if F_V.shape[0] < nV: 
+  nPi = F_Pi_list[0].shape[1]
+  nV = F_V_list[0].shape[1]
+  nA = A_list[0].shape[1]
+  if np.sum([F_Pi.shape[0] for F_Pi in F_Pi_list]) < nV:     
     objective = lambda x: None 
     return {'betaHat':np.random.normal(size=(nA, nPi)), 'thetaHat':np.zeros(nV), 'objective':objective}
   else:    
-    if bts: 
-      btsWts = np.random.exponential(size = F_V.shape[0] - 1) 
-    else: 
-      btsWts = np.ones(F_V.shape[0] - 1)
     if randomShrink: 
       thetaTilde = np.random.normal(size=nV)
     else:
       thetaTilde = np.zeros(nV)
-    objective = lambda beta: vPi(beta, policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, thetaTilde, refDist=refDist)
+    objective = lambda beta: vPi(beta, policyProbs, eps, M_list, A_list, R_list, F_Pi_list, F_V_list, Mu_list, bts, thetaTilde, refDist=refDist)
     if wStart is None:       
       wStart = np.random.normal(scale=1000, size=(nA-1, nPi)) #Leave out first action, since this is all zeros 
     betaOpt = VLopt(objective, x0=wStart, initializer=initializer)
     betaOpt = np.vstack((np.zeros(betaOpt.shape[1]), betaOpt))
-    thetaOpt = thetaPiVL(betaOpt.ravel(), policyProbs, eps, M, A, R, F_Pi, F_V, Mu, btsWts, thetaTilde)
+    thetaOpt = thetaPiVL(betaOpt.ravel(), policyProbs, eps, M_list, A_list, R_list, F_Pi_list, F_V_list, Mu_list, bts, thetaTilde)
     return {'betaHat':betaOpt, 'thetaHat':thetaOpt, 'objective':objective}
   
   

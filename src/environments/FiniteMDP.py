@@ -1,12 +1,13 @@
 import sys 
 sys.path.append('../utils')
 
-from VL_env import VL_env
+from RL_env import RL_env
 from policy_iteration import compute_vpi, policy_iteration
 from utils import onehot
 import numpy as np
+import pdb
 
-class FiniteMDP(VL_env):
+class FiniteMDP(RL_env):
   '''
   Generic subclass for MDPs with discrete state and action spaces. 
   '''
@@ -14,7 +15,7 @@ class FiniteMDP(VL_env):
   MAX_STATE = 1 
   MIN_STATE = 0 
   
-  def __init__(self, maxT, gamma, epsilon, transitionMatrices, rewardMatrices, terminalStates = [], fixUpTo = None):
+  def __init__(self, method, hardmax, maxT, gamma, epsilon, transitionMatrices, rewardMatrices, terminalStates = [], fixUpTo = None):
     '''
     Initialize MDP object, including self.mdpDict to store transition and reward information. 
     
@@ -29,7 +30,7 @@ class FiniteMDP(VL_env):
     self.maxT = maxT
     self.terminalStates = terminalStates
     NUM_ACTION, NUM_STATE = transitionMatrices.shape[0], transitionMatrices.shape[1]
-    VL_env.__init__(self, FiniteMDP.MAX_STATE, FiniteMDP.MIN_STATE, NUM_STATE, NUM_ACTION, gamma, epsilon,  
+    RL_env.__init__(self, method, hardmax, FiniteMDP.MAX_STATE, FiniteMDP.MIN_STATE, NUM_STATE, NUM_ACTION, gamma, epsilon,  
                     fixUpTo, vFeatureArgs = {'featureChoice':'identity'}, piFeatureArgs = {'featureChoice':'identity'})
     
     #Create transition dictionary of form {s_0 : {a_0: [( P(s_0 -> s_0), s_0, reward), ( P(s_0 -> s_1), s_1, reward), ...], a_1:...}, s_1:{...}, ...}
@@ -99,8 +100,17 @@ class FiniteMDP(VL_env):
     self.s = sNext
     reward = self.mdpDict[self.s][action][sNext][2]
     done = ((self.episodeSteps == self.maxT) or (sNext in self.terminalStates))     
-    data = self._update_data(action, bHat, done, reward, self.onehot(sNext))    
+    data = self._update_data(action, bHat, done, reward, self.onehot(sNext))     
     return data 
+    
+  def estimate_policy(self, beta):
+    policy = [] 
+    for s in range(self.NUM_STATE): 
+      s_vec = self.onehot(s) 
+      s_features = self.piFeatures(s_vec) 
+      qvals = np.dot(beta, s_features)
+      policy.append(np.argmax(qvals))
+    return policy
     
   def report(self, beta):
     '''
@@ -115,7 +125,7 @@ class FiniteMDP(VL_env):
       pi_beta[s] = np.argmax(self.pi(self.onehot(s), beta))
     pi_beta = np.round(pi_beta)
     v_beta = compute_vpi(pi_beta, self)      
-    
+        
     REPORT = 'Episode {} Total Reward: {}\npi opt: {} v opt: {}\n pi beta: {} v beta: {} beta: {}'
     print(REPORT.format(self.episode, np.sum(self.R[-self.episodeSteps:]), self.optimalPolicy, 
           self.optimalPolicyValue, pi_beta, v_beta, beta))
@@ -124,11 +134,11 @@ class SimpleMDP(FiniteMDP):
   '''
   A simple MDP with 2 actions and 4 states.  This is for testing.  
   '''
-  NUM_STATE = 4
+  NUM_STATE = 2
   NUM_ACTION = 2 
   TERMINAL = [] 
   
-  def __init__(self, maxT, gamma = 0.9, epsilon = 0.1, fixUpTo=None):
+  def __init__(self, method ,hardmax, maxT, gamma = 0.9, epsilon = 0.1, fixUpTo=None):
     '''
    
     Parameters
@@ -138,14 +148,13 @@ class SimpleMDP(FiniteMDP):
     epsilon : for epsilon - greedy 
     '''
     
-    #Define transition and reward arrays
-    transitionMatrices = np.array([[[0.1, 0.9, 0, 0], [0.1, 0, 0.9, 0], [0, 0.1, 0, 0.9], [0, 0, 0.1, 0.9]],
-                                   [[0.9, 0.1, 0, 0], [0.9, 0, 0.1, 0], [0, 0.9, 0, 0.1], [0, 0, 0.9, 0.1]]])
-    rewardMatrices = np.ones((SimpleMDP.NUM_ACTION, SimpleMDP.NUM_STATE, SimpleMDP.NUM_STATE)) * -0.1
-    rewardMatrices[[0,0],[2,3],[3,3]] = 1
+    transitionMatrices = np.array([[[0, 1], [0, 1]],
+                                   [[1, 0], [1, 0]]])
+    rewardMatrices = np.array([[[0, 1], [0, 1]],
+                               [[0, 0], [0, 0]]])
     
     #Initialize as FiniteMDP subclass
-    FiniteMDP.__init__(self, maxT, gamma, epsilon, transitionMatrices, rewardMatrices, SimpleMDP.TERMINAL, fixUpTo = fixUpTo)
+    FiniteMDP.__init__(self, method, hardmax, maxT, gamma, epsilon, transitionMatrices, rewardMatrices, SimpleMDP.TERMINAL, fixUpTo = fixUpTo)
 
   def update_schedule(self): 
     '''    
@@ -161,7 +170,7 @@ class RandomFiniteMDP(FiniteMDP):
   '''
   TERMINAL = [] 
 
-  def __init__(self, maxT, nA = 3, nS = 4, gamma = 0.9, epsilon = 0.1, fixUpTo = None):
+  def __init__(self, method, hardmax, maxT, nA = 3, nS = 4, gamma = 0.9, epsilon = 0.1, fixUpTo = None):
     '''
     Initializes randomFiniteMDP object by passing randomly generated transition distributions and rewards to FiniteMDP.
     
@@ -178,7 +187,7 @@ class RandomFiniteMDP(FiniteMDP):
     rewardMatrices = np.random.uniform(low=-10, high=10, size=(nA, nS, nS))
 
     #Initialize as FiniteMDP subclass 
-    FiniteMDP.__init__(self, maxT, gamma, epsilon, transitionMatrices, rewardMatrices, RandomFiniteMDP.TERMINAL, fixUpTo=fixUpTo)
+    FiniteMDP.__init__(self, method, hardmax, maxT, gamma, epsilon, transitionMatrices, rewardMatrices, RandomFiniteMDP.TERMINAL, fixUpTo=fixUpTo)
   
   def update_schedule(self): 
     '''    
@@ -243,7 +252,7 @@ class Gridworld(FiniteMDP):
     else: 
       return 1
       
-  def __init__(self, maxT, gamma = 0.9, epsilon = 0.1, fixUpTo = None):
+  def __init__(self, method, hardmax, maxT, gamma = 0.9, epsilon = 0.1, fixUpTo = None):
     '''   
     Parameters
     ----------
@@ -276,7 +285,7 @@ class Gridworld(FiniteMDP):
             rewardMatrices[a, s, s_next] = self.reward(s_next)
     
     #Initialize as FiniteMDP subclass
-    FiniteMDP.__init__(self, maxT, gamma, epsilon, transitionMatrices, rewardMatrices, Gridworld.TERMINAL)
+    FiniteMDP.__init__(self, method, hardmax, maxT, gamma, epsilon, transitionMatrices, rewardMatrices, Gridworld.TERMINAL)
 
   def update_schedule(self): 
     '''    
@@ -293,7 +302,7 @@ class Chain(FiniteMDP):
   '''
   NUM_ACTION = 2  
   
-  def __init__(self, N, epsilon, fixUpTo = None):
+  def __init__(self, method, hardmax, N, epsilon, fixUpTo = None):
     '''
     :param N: length of chain (number of states)
     
@@ -305,9 +314,9 @@ class Chain(FiniteMDP):
     
     #Fill transition and reward matrices 
     #Action 0 = Left 
-    transitionMatrices[0, N-1, N-1] = 1
-    for n in range(N-1): 
-      transitionMatrices[0, n, n+1] = 1 
+    transitionMatrices[0, 0, 0] = 1
+    for n in range(1,N): 
+      transitionMatrices[0, n, n-1] = 1 
     #Action 1 = Right
     transitionMatrices[1, 0, 1] = 1 - 1/N 
     transitionMatrices[1, 0, 0] = 1/N 
@@ -320,22 +329,22 @@ class Chain(FiniteMDP):
     for n in range(N): 
       rewardMatrices[0, n, N-1] = 1 
       rewardMatrices[1, n, N-1] = 1      
-    FiniteMDP.__init__(self, N, 0.95, epsilon, transitionMatrices, rewardMatrices, [N-1])
+    FiniteMDP.__init__(self, method, hardmax, N, 0.7, epsilon, transitionMatrices, rewardMatrices, [N-1])
     
     #Set RBF features, using odd states as basis points 
-    basis_states = [s for s in range(N) if (s + 1) % 2 == 0] 
-    onehot_to_int = lambda vec: np.flatnonzero(vec)[0]
-    self.vFeatures = lambda s_vec: np.array([np.exp(-np.abs(onehot_to_int(s_vec) - s0)) for s0 in basis_states])
-    self.piFeatures = self.vFeatures
-    self.nV = self.nPi = int(np.floor(N / 2))
+    #basis_states = [s for s in range(N) if (s + 1) % 2 == 0] 
+    #onehot_to_int = lambda vec: np.flatnonzero(vec)[0]
+    #self.vFeatures = lambda s_vec: np.array([np.exp(-np.abs(onehot_to_int(s_vec) - s0)) for s0 in basis_states])
+    #self.piFeatures = self.vFeatures
+    #self.nV = self.nPi = int(np.floor(N / 2))
     
     #Reset data arrays because we overwrote default feature functions 
-    self.F_V  = np.zeros((0, self.nV))          #V-function features
-    self.F_Pi = np.zeros((0, self.nPi))         #Policy features
-    self.M    = np.zeros((0, self.nV, self.nV)) #Outer products (for computing thetaHat)
+    #self.F_V  = np.zeros((0, self.nV))          #V-function features
+    #self.F_Pi = np.zeros((0, self.nPi))         #Policy features
+    #self.M    = np.zeros((0, self.nV, self.nV)) #Outer products (for computing thetaHat)
     
   def update_schedule(self):
-    return self.episodeSteps % (np.floor(self.NUM_STATE /2)) == 0
+    return True
 
   
   

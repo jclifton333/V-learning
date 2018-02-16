@@ -1,19 +1,19 @@
 GYM_IMPORT_ERROR_MESSAGE = "Couldn't import gym module.  You won't be able to use the Cartpole environment."
 
-from VL_env import VL_env
+from RL_env import RL_env
 try: 
   import gym
 except ModuleNotFoundError or ImportError:
   print(GYM_IMPORT_ERROR_MESSAGE)
 import numpy as np
 
-class Cartpole(VL_env):
+class Cartpole(RL_env):
   MAX_STATE = np.array([0.75, 3.3]) #Set bounds of state space
   MIN_STATE = -MAX_STATE  
   NUM_STATE = 2
   NUM_ACTION = 2
     
-  def __init__(self, gamma = 0.9, epsilon = 0.1, defaultReward = True, fixUpTo = None, vFeatureArgs = {'featureChoice':'gRBF', 'sigmaSq':1, 'gridpoints':5}, piFeatureArgs = {'featureChoice':'identity'}):
+  def __init__(self, method, hardmax, gamma = 0.9, epsilon = 0.1, defaultReward = True, fixUpTo = None, vFeatureArgs = {'featureChoice':'gRBF', 'sigmaSq':1, 'gridpoints':5}, piFeatureArgs = {'featureChoice':'identity'}):
     '''
     Constructs the cartpole environment, and sets feature functions.  
     
@@ -26,7 +26,7 @@ class Cartpole(VL_env):
                    If featureChoice == 'gRBF', then items 'gridpoints' and 'sigmaSq' must also be provided. 
     piFeatureArgs : '' 
     '''
-    VL_env.__init__(self, Cartpole.MAX_STATE, Cartpole.MIN_STATE, Cartpole.NUM_STATE, Cartpole.NUM_ACTION, 
+    RL_env.__init__(self, method, hardmax, Cartpole.MAX_STATE, Cartpole.MIN_STATE, Cartpole.NUM_STATE, Cartpole.NUM_ACTION, 
                    gamma, epsilon, fixUpTo, vFeatureArgs, piFeatureArgs)
     self.env = gym.make('CartPole-v0')
     self.defaultReward = defaultReward    

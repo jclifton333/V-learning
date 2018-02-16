@@ -12,11 +12,11 @@ sys.path.append('../src/utils')
 import os 
 import pickle as pkl
 import numpy as np
-import matplotlib.pyplot as plt 
-from policy_utils import policyProbs
-from VL import thetaPi
+#import matplotlib.pyplot as plt 
+#from policy_utils import policyProbs
+#from VL import thetaPi
 
-ENV_NAME = 'Glucose'
+ENV_NAME = 'Cartpole'
 
 #Analyze  data 
 

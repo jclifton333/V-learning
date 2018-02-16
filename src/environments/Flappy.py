@@ -1,14 +1,14 @@
-PLE_IMPORT_ERROR_MESSAGE = "Couldn't import gym module.  You won't be able to use the Flappy environment."
+PLE_IMPORT_ERROR_MESSAGE = "Couldn't import ple module.  You won't be able to use the Flappy environment."
 
 try: 
   from ple.games.flappybird import FlappyBird
   from ple import PLE
 except ImportError:
-  print(GYM_IMPORT_ERROR_MESSAGE)
-from VL_env import VL_env 
+  print(PLE_IMPORT_ERROR_MESSAGE)
+from RL_env import RL_env 
 import numpy as np
 
-class Flappy(VL_env):
+class Flappy(RL_env):
   STATE_NAMES = ['next_pipe_bottom_y', 'next_pipe_dist_to_player', 
                  'next_pipe_top_y', 'player_y', 'player_vel'] #Names of the states we want to keep 
   MAX_STATE = np.array([280, 300,  170,  300, 10])
@@ -17,7 +17,7 @@ class Flappy(VL_env):
   NUM_ACTION = 2
   ACTION_LIST = [None, 119] #Action codes accepted by the FlappyBird API, corresponding to [0, 1]
   
-  def __init__(self, gamma = 0.9, epsilon = 0.1, displayScreen = False, fixUpTo = None, vFeatureArgs = {'featureChoice':'gRBF', 'sigmaSq':1, 'gridpoints':5}, piFeatureArgs = {'featureChoice':'identity'}):
+  def __init__(self, method, hardmax, gamma = 0.9, epsilon = 0.1, displayScreen = False, fixUpTo = None, vFeatureArgs = {'featureChoice':'gRBF', 'sigmaSq':1, 'gridpoints':5}, piFeatureArgs = {'featureChoice':'identity'}):
     '''
     Constructs the cartpole environment, and sets feature functions.  
 
@@ -30,7 +30,7 @@ class Flappy(VL_env):
                    If featureChoice == 'gRBF', then items 'gridpoints' and 'sigmaSq' must also be provided. 
     piFeatureArgs : '' 
     '''
-    VL_env.__init__(self, Flappy.MAX_STATE, Flappy.MIN_STATE, Flappy.NUM_STATE, Flappy.NUM_ACTION,
+    RL_env.__init__(self, method, hardmax, Flappy.MAX_STATE, Flappy.MIN_STATE, Flappy.NUM_STATE, Flappy.NUM_ACTION,
                    gamma, epsilon, fixUpTo, vFeatureArgs, piFeatureArgs)
     self.gameStateReturner = FlappyBird() #Use this to return state dictionaries 
     self.env = PLE(self.gameStateReturner, fps = 30, display_screen = displayScreen) #Use this to input actions and return rewards

@@ -10,13 +10,13 @@ Implementing optimization similar to that described in https://arxiv.org/pdf/161
   the maximum; this solution is then used as the starting value for the BFGS algorithm."
 """
 
-NUM_MULTISTART = 5 #Number of random starts for multistart option 
+NUM_MULTISTART = 10 #Number of random starts for multistart option 
 
 import scipy.optimize as optim
 import numpy as np
 import multiprocessing as mp
 from functools import partial
-
+import pdb
 
 def minimize_worker(x0, objective, out_q): 
   '''
@@ -66,10 +66,11 @@ def VLopt(objective, x0, initializer=None):
   nA, nPi = x0.shape
   x0 = x0.ravel() 
   if initializer == 'basinhop': 
-    x0 = optim.basinhopping(objective, x0=np.zeros(len(x0)), niter=3000).x
+    x0 = optim.basinhopping(objective, x0=np.zeros(len(x0)), niter=1000).x
     res = optim.minimize(objective, x0=x0, method='L-BFGS-B')
   elif initializer == 'multistart': 
-    random_starts = [x0] + [np.random.multivariate_normal(mean=np.zeros(nPi*nA),cov=100*np.eye(nPi*nA)) for start in range(NUM_MULTISTART-1)]
+    random_starts = [x0] + [np.random.multivariate_normal(mean=x0,cov=np.linalg.norm(x0)*np.eye(nPi*nA)) for start in range(NUM_MULTISTART-1)]
+    #random_starts = [x0, np.array([[1.0, 1.0, 1.0, 1.0], [-1.0, -1.0, -1.0, -1.0]])]
     results = [optim.minimize(objective, x0=random_start, method='L-BFGS-B') for random_start in random_starts]
     func_vals = [r.fun for r in results]
     res = results[np.argmin(func_vals)]

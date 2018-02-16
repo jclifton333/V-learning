@@ -4,11 +4,11 @@ sys.path.append('../estimation')
 
 from policy_gradient import total_policy_gradient_multi
 from VL import thetaPiMulti
-from VL_env import VL_env
+from RL_env import RL_env
 import numpy as np
 import pdb
 
-class Glucose(VL_env): 
+class Glucose(RL_env): 
   '''
   Implements an environment closely similar to the online generative glucose
   model in the Luckett et al. V-learning paper.  
@@ -37,7 +37,7 @@ class Glucose(VL_env):
   HYPOGLYCEMIC = np.array([50, 0, 33, 50, 0, 0, 0, 0])
   HYPERGLYCEMIC = np.array([200, 0, 30, 200, 0, 0, 78, 0])
 
-  def __init__(self, maxT, gamma = 0.9, epsilon = 0.1, fixUpTo = None, vFeatureArgs = {'featureChoice':'intercept'}, piFeatureArgs = {'featureChoice':'intercept'}):
+  def __init__(self, method, hardmax, maxT, gamma = 0.9, epsilon = 0.1, fixUpTo = None, vFeatureArgs = {'featureChoice':'intercept'}, piFeatureArgs = {'featureChoice':'intercept'}):
     '''
     Constructs the Glucose environment, and sets feature functions.  
     
@@ -51,19 +51,18 @@ class Glucose(VL_env):
                    If featureChoice == 'gRBF', then items 'gridpoints' and 'sigmaSq' must also be provided. 
     piFeatureArgs : '' 
     '''
-    VL_env.__init__(self, Glucose.MAX_STATE, Glucose.MIN_STATE, Glucose.NUM_STATE, Glucose.NUM_ACTION, 
+    RL_env.__init__(self, method, hardmax, Glucose.MAX_STATE, Glucose.MIN_STATE, Glucose.NUM_STATE, Glucose.NUM_ACTION, 
                    gamma, epsilon, fixUpTo, vFeatureArgs, piFeatureArgs)
     self.maxT = maxT               
     self.S = np.zeros((0, Glucose.NUM_STATE)) #Record raw states, too 
     #Experimenting with quadratic v-function 
     #s_less_100 = lambda s: (s[0] < 100) * np.concatenate(([1], [s[0]], [s[0]**2]))
     #s_gr_100 = lambda s: (s[0] >= 100) * np.concatenate(([1], [s[0]], [s[0]**2]))
-    s_less_100 = lambda s: (s[0] < 100) * np.concatenate(([1], s, [s[0]**2]))
-    s_gr_100 = lambda s: (s[0] >= 100) * np.concatenate(([1], s, [s[0]**2]))
+    s_less_100 = lambda s: (s[0] < 100) * np.concatenate(([1], [s[0]], [s[0]**2]))
+    s_gr_100 = lambda s: (s[0] >= 100) * np.concatenate(([1], [s[0]], [s[0]**2]))
     self.vFeatures = lambda s: np.concatenate((s_less_100(s), s_gr_100(s)))
     self.piFeatures = self.vFeatures 
-    #self.nV = 6
-    self.nV = (Glucose.NUM_STATE + 2)*2
+    self.nV = 6
     self.nPi = self.nV 
     self.F_Pi = np.zeros((0, self.nPi))
     self.F_V = np.zeros((0, self.nV))
@@ -137,7 +136,7 @@ class Glucose(VL_env):
     else: 
       last_last_state = last_state
     if self.episodeSteps > 1: 
-      last_action = self.A[-1,1] 
+      last_action = self.A_list[-1][-1,1] 
     else: 
       last_action = 0
     X = np.hstack(([1], last_state[:2], last_last_state[1], last_state[2], last_last_state[2],
