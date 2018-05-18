@@ -61,7 +61,7 @@ class data(object):
   '''
   For storing and saving data from simulations.  
   '''
-  def __init__(self, environment, method, fixUpTo, initializer, label, epsilon, epsDecay, bts, write = False):
+  def __init__(self, environment, method, fixUpTo, initializer, label, epsilon, epsDecay, bts, ucb, write = False):
     '''
     :param environment: a string naming a VLenv object 
     :param fixUpTo: integer or None for number of obs to include in reference distribution 
@@ -74,7 +74,8 @@ class data(object):
     self.epsilon = epsilon 
     self.bts = bts 
     self.initializer = initializer 
-    self.description = 'eps-{}-decay-{}-bts-{}-fix-{}-initializer-{}-method-{}'.format(epsilon, epsDecay, bts, fixUpTo, initializer, method)
+    self.ucb = ucb
+    self.description = 'eps-{}-decay-{}-bts-{}-ucb-{}-fix-{}-initializer-{}-method-{}'.format(epsilon, epsDecay, bts, ucb, fixUpTo, initializer, method)
     self.label = label
     self.episode = []
     self.score = []
@@ -107,7 +108,7 @@ class data(object):
     '''
     data_dict = {'label':self.label, 'description':self.description, 'episode':self.episode, 'score':self.score,
                  'beta_hat':self.beta_hat, 'theta_hat':self.theta_hat,
-                 'epsilon':self.epsilon, 'bts':self.bts, 'initializer':self.initializer, 'method':self.method,
+                 'epsilon':self.epsilon, 'bts':self.bts, 'ucb':self.ucb, 'initializer':self.initializer, 'method':self.method,
                  'epsDecay':self.epsDecay}
     filename = 'results/{}/'.format(self.environment) + self.name 
     pkl.dump(data_dict, open(filename, 'wb')) 
@@ -134,7 +135,7 @@ def getEnvironment(envName, method, hardmax, gamma, epsilon, fixUpTo):
   else: 
     raise ValueError('Incorrect environment name.  Choose name in {}.'.format(VALID_ENVIRONMENT_NAMES))
     
-def simulate(bts, epsilon, initializer, label, method, hardmax, randomShrink, envName, gamma, nEp, fixUpTo, actorCritic, epsDecay, write = False):
+def simulate(bts, epsilon, initializer, label, method, hardmax, randomShrink, envName, gamma, nEp, fixUpTo, actorCritic, epsDecay, ucb, write = False):
   '''
   Runs simulation with V-learning.
   
@@ -158,7 +159,7 @@ def simulate(bts, epsilon, initializer, label, method, hardmax, randomShrink, en
   env = getEnvironment(envName, method, hardmax, gamma, epsilon, fixUpTo)
   betaHat = np.random.normal(size=(env.NUM_ACTION, env.nPi))
   thetaHat = np.zeros(env.nV)  
-  save_data = data(envName, method, fixUpTo, initializer, label, epsilon, epsDecay, bts, write = write)
+  save_data = data(envName, method, fixUpTo, initializer, label, epsilon, epsDecay, bts, ucb, write = write)
   
   #ToDo: Make this an environment method 
   def get_random_weights(): 
@@ -183,7 +184,7 @@ def simulate(bts, epsilon, initializer, label, method, hardmax, randomShrink, en
       a = env._get_action(fPi, betaHat)
       fPi, F_V_list, F_Pi_list, A_list, R_list, Mu_list, M_list, refDist, done, reward = env.step(a, betaHat)
       score += R_list[-1][-1]
-      env.epsilon = env.epsilon/(env.totalSteps)^epsDecay
+      env.epsilon = env.epsilon/(env.totalSteps)**epsDecay
       if method == 'VL':
         if actorCritic: 
           if env.update_schedule(): 
@@ -194,19 +195,38 @@ def simulate(bts, epsilon, initializer, label, method, hardmax, randomShrink, en
         else:
           if env.update_schedule(): 
             policyProbsSoft = lambda a, s, b, e: policyProbs(a, s, b, e, False)
-            res = env.betaOpt(policyProbsSoft, env.epsilon, M_list, A_list, R_list, F_Pi_list, F_V_list, Mu_list, bts = bts, randomShrink = randomShrink, wStart = betaHat[1:,:], refDist = refDist, initializer = initializer)
-            betaHat, thetaHat = res['betaHat'], res['thetaHat']
+            if ucb: 
+              Vmax = -float('inf')
+              for i in range(20):
+                res = env.betaOpt(policyProbsSoft, env.epsilon, M_list, A_list, R_list, F_Pi_list, F_V_list, Mu_list, bts = True, randomShrink = randomShrink, wStart = betaHat[1:,:], refDist = refDist, initializer = initializer)
+                betaHatRep, thetaHatRep = res['betaHat'], res['thetaHat']
+                if np.dot(thetaHatRep, F_V_list[-1][-1,:]) > Vmax:
+                  Vmax = np.dot(thetaHatRep, F_V_list[-1][-1,:]) 
+                  betaHat = betaHatRep
+            else:
+                res = env.betaOpt(policyProbsSoft, env.epsilon, M_list, A_list, R_list, F_Pi_list, F_V_list, Mu_list, bts = bts, randomShrink = randomShrink, wStart = betaHat[1:,:], refDist = refDist, initializer = initializer)
+                betaHat, thetaHat = res['betaHat'], res['thetaHat']
       elif method == 'QL':
         if env.update_schedule():
-          res = env.betaOpt(env.gamma, A_list, R_list, F_Pi_list, wStart = betaHat, bts = bts)
-          betaHat, thetaHat = res['betaHat'], res['thetaHat']
+            if ucb: 
+              Vmax = -float('inf')
+              for i in range(20):
+                res = env.betaOpt(env.gamma, A_list, R_list, F_Pi_list, wStart = betaHat, bts = True)
+                betaHatRep, thetaHatRep = res['betaHat'], res['thetaHat']
+                if np.dot(thetaHatRep, F_V_list[-1][-1,:]) > Vmax:
+                  Vmax = np.dot(thetaHatRep, F_V_list[-1][-1,:]) 
+                  betaHat = betaHatRep
+            else:
+              res = env.betaOpt(env.gamma, A_list, R_list, F_Pi_list, wStart = betaHat, bts = bts)
+              betaHat, thetaHat = res['betaHat'], res['thetaHat']
         #state_action_features_list = [np.array([np.kron(A_list[t][i,:], F_Pi_list[t][i,:]) for i in range(A_list[t].shape[0])]) for t in range(len(A_list))]
         #betaHat += 0.1*QL_TD_error(betaHat, env.gamma, A_list, R_list, F_Pi_list, bts, state_action_features_list).reshape(betaHat.shape)
         #thetaHat = None
       #print('episode: {} action: {} state: {} reward: {}'.format(env.episode, a, env.S[-1,0], R_list[-1][-1]))
     #print('esitmated policy: {}'.format(env.estimate_policy(betaHat)))
     #t1 = time.time()
-    env.report(betaHat)
+    #env.report(betaHat)
+    print('episode {} score {}'.format(ep, env.episodeSteps))
     save_data.update(ep, env.episodeSteps, betaHat, thetaHat)      
   return 
   
@@ -227,13 +247,14 @@ if __name__ == "__main__":
   parser.add_argument('--epsDecay', type=float, help="Timestep exponent for controlling epsilon decay.")
   parser.add_argument('--method', type=str, choices=['QL', 'VL'], help="String for using QL or VL.")
   parser.add_argument('--hardmax', type=str2bool, help="Boolean for using hard- or softmax policy.")
+  parser.add_argument('--ucb', type=str2bool, help="Boolean for UCB exploration.")
   args = parser.parse_args()
     
   np.random.seed(args.randomSeed)
   
   pool = pl.ThreadPool(args.nRep)
   simulate_partial = partial(simulate, method = args.method, hardmax = args.hardmax, randomShrink = args.randomShrink, envName = args.envName, gamma = args.gamma, 
-                     nEp = args.nEp, fixUpTo = args.fixUpTo, actorCritic = args.actorCritic, epsDecay = args.epsDecay, write = args.write) 
+                     nEp = args.nEp, fixUpTo = args.fixUpTo, actorCritic = args.actorCritic, epsDecay = args.epsDecay, ucb = args.ucb, write = args.write) 
   argList = [(args.bts, args.epsilon, args.initializer, label) for label in range(args.nRep+20)]
   pool.starmap(simulate_partial, argList) 
   pool.close()

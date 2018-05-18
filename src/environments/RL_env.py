@@ -108,7 +108,10 @@ class RL_env(object):
     else: 
       act_vec = action 
       
-    self.A_list[-1] = np.vstack((self.A_list[-1], act_vec)) 
+    try:
+      self.A_list[-1] = np.vstack((self.A_list[-1], act_vec)) 
+    except:
+      pdb.set_trace()
     self.R_list[-1] = np.append(self.R_list[-1], reward)
     self.Mu_list[-1] = np.append(self.Mu_list[-1], mu)
     self.M_list[-1] = np.concatenate((self.M_list[-1], [outerProd]), axis=0)

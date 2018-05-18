@@ -1,7 +1,7 @@
 #Ignore results
 results/
 diagnostics/
-
+analysis/
 
 ## Python recommended ignores (source: https://github.com/github/gitignore/blob/master/Python.gitignore)
 

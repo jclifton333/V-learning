@@ -33,7 +33,7 @@ for fname in os.listdir('../results/{}-heatmap'.format(ENV_NAME)):
      pass
 
 df = pd.DataFrame(data_dict)
-hm = df.groupby(['eps', 'decay'])['score'].mean().unstack()
+hm = df.groupby(['eps', 'decay'])['score'].median().unstack()
 #plt.imshow(hm.as_matrix(), cmap='hot', interpolation='nearest')
 print(hm)
-print('bts performance: {}'.format(np.mean(bts_scores)))
+print('bts performance: {}'.format(np.median(bts_scores)))

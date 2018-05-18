@@ -42,6 +42,7 @@ class FiniteMDP(RL_env):
     policy_iteration_results = policy_iteration(self)
     self.transitionMatrices = transitionMatrices
     self.rewardMatrices = rewardMatrices
+    self.optimalQ = policy_iteration_results[2].T
     self.optimalPolicy = policy_iteration_results[1][-1]
     self.optimalPolicyValue = policy_iteration_results[0][-1]
     
@@ -97,9 +98,9 @@ class FiniteMDP(RL_env):
     #Get next observation
     nextStateDistribution = self.transitionMatrices[int(action), self.s, :]
     sNext = np.random.choice(self.NUM_STATE, p=nextStateDistribution)
+    reward = self.rewardMatrices[action, self.s, sNext]
     self.s = sNext
-    reward = self.mdpDict[self.s][action][sNext][2]
-    done = ((self.episodeSteps == self.maxT) or (sNext in self.terminalStates))     
+    done = ((self.episodeSteps == self.maxT) or (sNext in self.terminalStates))  
     data = self._update_data(action, bHat, done, reward, self.onehot(sNext))     
     return data 
     
@@ -127,7 +128,7 @@ class FiniteMDP(RL_env):
     v_beta = compute_vpi(pi_beta, self)      
         
     REPORT = 'Episode {} Total Reward: {}\npi opt: {} v opt: {}\n pi beta: {} v beta: {} beta: {}'
-    print(REPORT.format(self.episode, np.sum(self.R[-self.episodeSteps:]), self.optimalPolicy, 
+    print(REPORT.format(self.episode, np.sum(self.R_list[-self.episodeSteps:]), self.optimalPolicy, 
           self.optimalPolicyValue, pi_beta, v_beta, beta))
           
 class SimpleMDP(FiniteMDP):
@@ -183,7 +184,7 @@ class RandomFiniteMDP(FiniteMDP):
     epsilon : for epsilon - greedy 
     '''
     #Generate transition distributions 
-    transitionMatrices = np.random.dirichlet(alpha=np.ones(nS), size=(nA, nS)) #nA x NUM_STATE x NUM_STATE array of NUM_STATE x NUM_STATE transition matrices, uniform on simplex
+    transitionMatrices = np.random.dirichlet(alpha=[1,1,1,1,10], size=(nA, nS)) #nA x NUM_STATE x NUM_STATE array of NUM_STATE x NUM_STATE transition matrices, uniform on simplex
     rewardMatrices = np.random.uniform(low=-10, high=10, size=(nA, nS, nS))
 
     #Initialize as FiniteMDP subclass 
